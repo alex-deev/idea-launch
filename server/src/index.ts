@@ -102,11 +102,26 @@ app.get("/health", (_req, res) => {
 
 app.get("/api/me", async (req, res) => {
   const session = await getSession(req, authConfig as any);
-  if (!session?.user) {
+  if (!session?.user?.id) {
     res.status(401).json({ user: null });
     return;
   }
-  res.json({ user: session.user });
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      probationary: true,
+      rulesAccepted: true,
+      ecosystems: true,
+      portfolioUrls: true,
+    },
+  });
+
+  res.json({ user: dbUser ?? session.user });
 });
 
 app.use("/auth", ExpressAuth(authConfig as any));

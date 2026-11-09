@@ -15,6 +15,7 @@ import { ProjectWorkspace } from "@/components/ProjectWorkspace";
 import { SignInPage } from "@/pages/SignInPage";
 import { SignUpPage } from "@/pages/SignUpPage";
 import { useAuth, type FakeUser } from "@/contexts/AuthContext";
+import { API_URL } from "@/lib/api";
 
 interface UserState {
   id: string;
@@ -48,7 +49,11 @@ function RequireAuth({
   role: "CLIENT" | "BUILDER";
   children: React.ReactNode;
 }) {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Loading session...</p>;
+  }
 
   if (!user) {
     return <Navigate to="/signin" replace />;
@@ -64,9 +69,11 @@ function RequireAuth({
 function Header({
   user,
   signOut,
+  builderProbationary = false,
 }: {
   user: FakeUser | null;
   signOut: () => void;
+  builderProbationary?: boolean;
 }) {
   const location = useLocation();
 
@@ -93,7 +100,7 @@ function Header({
             </Button>
           </>
         )}
-        {user?.role === "BUILDER" && location.pathname === "/builder" ? (
+        {user?.role === "BUILDER" && location.pathname === "/builder" && builderProbationary ? (
           <Badge variant="secondary">$1,500 Budget Cap</Badge>
         ) : null}
       </div>
@@ -186,13 +193,33 @@ function App() {
 
   useEffect(() => {
     setBuilderOnboarded(false);
-  }, [user?.id]);
+
+    if (!user || user.role !== "BUILDER") {
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`${API_URL}/api/me`, { credentials: "include" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const profile = data?.user;
+        setBuilderOnboarded(Boolean(profile?.rulesAccepted && !profile?.probationary));
+      })
+      .catch(() => {
+        if (!cancelled) setBuilderOnboarded(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role]);
 
   return (
     <BrowserRouter>
       <TitleManager />
       <div className="flex h-dvh flex-col bg-background">
-        <Header user={user} signOut={signOut} />
+        <Header user={user} signOut={signOut} builderProbationary={user?.role === "BUILDER" && !builderOnboarded} />
         <main className="flex min-h-0 flex-1 justify-center overflow-hidden p-4">
           <div className="flex h-full w-full max-w-6xl flex-col">
             <Routes>

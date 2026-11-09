@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,14 @@ import { Input } from "@/components/ui/input";
 import { useAuth, type FakeRole } from "@/contexts/AuthContext";
 
 export function SignUpPage() {
-  const { signUp } = useAuth();
+  const { signUp, user } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      navigate(user.role === "CLIENT" ? "/client" : "/builder", { replace: true });
+    }
+  }, [user, navigate]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,14 @@ import { Input } from "@/components/ui/input";
 import { useAuth, type FakeRole } from "@/contexts/AuthContext";
 
 export function SignInPage() {
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      navigate(user.role === "CLIENT" ? "/client" : "/builder", { replace: true });
+    }
+  }, [user, navigate]);
   const [email, setEmail] = useState("client@example.com");
   const [password, setPassword] = useState("password");
   const [role, setRole] = useState<FakeRole>("CLIENT");
