@@ -247,9 +247,22 @@ export function initializeSocket(httpServer: HttpServer) {
           ? data.portfolioUrls.join(",")
           : String(data.portfolioUrls ?? "");
 
-        const user = await prisma.user.update({
+        const user = await prisma.user.upsert({
           where: { id: data.userId },
-          data: {
+          update: {
+            ecosystems,
+            portfolioUrls,
+            rulesAccepted: Boolean(data.rulesAccepted),
+            probationary: false,
+          },
+          create: {
+            id: data.userId,
+            name: data.userId === "client-user" ? "Client User" : "Builder User",
+            email:
+              data.userId === "client-user"
+                ? "client@example.com"
+                : "builder@example.com",
+            role: data.userId === "client-user" ? "CLIENT" : "BUILDER",
             ecosystems,
             portfolioUrls,
             rulesAccepted: Boolean(data.rulesAccepted),

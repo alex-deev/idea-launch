@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const fakeUser: FakeUser = {
-      id: `${role.toLowerCase()}-${email.toLowerCase().replace(/[^a-z0-9]/g, "") || "demo"}`,
+      id: role === "CLIENT" ? "client-user" : "builder-user",
       name: role === "CLIENT" ? "Client User" : "Builder User",
       email,
       role,
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const fakeUser: FakeUser = {
-      id: `${role.toLowerCase()}-${email.toLowerCase().replace(/[^a-z0-9]/g, "") || "demo"}`,
+      id: role === "CLIENT" ? "client-user" : "builder-user",
       name,
       email,
       role,
