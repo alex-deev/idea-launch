@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
       redirect: "false",
-      callbackUrl: window.location.origin,
+      callbackUrl: `${API_URL}/health`,
     });
 
     const response = await fetch(`${API_URL}/auth/callback/credentials`, {
@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: new URLSearchParams({
         csrfToken,
         redirect: "false",
-        callbackUrl: window.location.origin,
+        callbackUrl: `${API_URL}/health`,
       }),
     });
     setUser(null);
