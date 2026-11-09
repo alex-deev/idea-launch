@@ -9,6 +9,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 
 import { prisma } from "./lib/prisma.js";
 import { paymentsRouter } from "./routes/payments.js";
+import { projectsRouter } from "./routes/projects.js";
 import { initializeSocket } from "./socket.js";
 
 const port = Number(process.env.PORT ?? 3001);
@@ -107,6 +108,7 @@ app.get("/api/me", async (req, res) => {
 
 app.use("/auth", ExpressAuth(authConfig as any));
 app.use("/api/payments", paymentsRouter);
+app.use("/api/projects", projectsRouter);
 
 const httpServer = createServer(app);
 initializeSocket(httpServer);

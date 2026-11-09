@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BuilderOnboarding } from "@/components/BuilderOnboarding";
-import { Chat } from "@/components/Chat";
+import { ProjectWorkspace } from "@/components/ProjectWorkspace";
 
 type Role = "CLIENT" | "BUILDER";
 
@@ -82,7 +82,7 @@ function Home() {
 
 function ClientView({ user }: { user: UserState }) {
   return (
-    <Chat
+    <ProjectWorkspace
       userId={user.id}
       role={user.role}
       name={user.name}
@@ -103,7 +103,7 @@ function BuilderView({
   }
 
   return (
-    <Chat
+    <ProjectWorkspace
       userId={user.id}
       role={user.role}
       name={user.name}

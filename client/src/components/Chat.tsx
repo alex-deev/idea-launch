@@ -11,7 +11,6 @@ import { ProjectControls } from "@/components/ProjectControls";
 import { ScopeWidget } from "@/components/ScopeWidget";
 import { SOCKET_URL } from "@/lib/api";
 
-const PROJECT_ID = "project-123";
 
 const OFFER_MILESTONES = [
   { title: "Agreement", amount: 25000 },
@@ -60,9 +59,10 @@ interface ChatProps {
   role: string;
   name: string;
   probationary?: boolean;
+  projectId?: string;
 }
 
-export function Chat({ userId, role, name, probationary = false }: ChatProps) {
+export function Chat({ userId, role, name, probationary = false, projectId = "project-123" }: ChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [projectStatus, setProjectStatus] = useState("SCOPING");
@@ -77,7 +77,7 @@ export function Chat({ userId, role, name, probationary = false }: ChatProps) {
     });
     socketRef.current = socket;
 
-    socket.emit("join_project", { projectId: PROJECT_ID, userId });
+    socket.emit("join_project", { projectId: projectId, userId });
 
     socket.on("new_message", (message: ChatMessage) => {
       setMessages((prev) => [...prev, message]);
@@ -96,7 +96,7 @@ export function Chat({ userId, role, name, probationary = false }: ChatProps) {
         ...prev,
         {
           id: `system-${Date.now()}`,
-          projectId: PROJECT_ID,
+          projectId: projectId,
           type: "SYSTEM",
           content: `Milestone ${milestone?.title ?? milestone?.id ?? ""} Approved - Escrow Released`,
           senderId: null,
@@ -108,14 +108,14 @@ export function Chat({ userId, role, name, probationary = false }: ChatProps) {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [userId, role, name]);
+  }, [userId, role, name, projectId]);
 
   const sendMessage = () => {
     const content = draft.trim();
     if (!content || !socketRef.current) return;
 
     socketRef.current.emit("send_message", {
-      projectId: PROJECT_ID,
+      projectId: projectId,
       senderId: userId,
       type: "TEXT",
       content,
@@ -126,7 +126,7 @@ export function Chat({ userId, role, name, probationary = false }: ChatProps) {
   const simulateScope = () => {
     if (role !== "CLIENT" || !socketRef.current) return;
     socketRef.current.emit("send_message", {
-      projectId: PROJECT_ID,
+      projectId: projectId,
       senderId: userId,
       type: "TEXT",
       content: `[TRIGGER_SCOPE_GENERATION] ${DEMO_IDEA}`,
@@ -139,7 +139,7 @@ export function Chat({ userId, role, name, probationary = false }: ChatProps) {
 
     const milestoneId = MILESTONE_IDS[nextMilestoneIndex];
     socketRef.current.emit("submit_demo", {
-      projectId: PROJECT_ID,
+      projectId: projectId,
       milestoneId,
       senderId: userId,
       demoUrl: `https://demo.example.com/${milestoneId}`,
@@ -151,7 +151,7 @@ export function Chat({ userId, role, name, probationary = false }: ChatProps) {
     if (projectStatus === "ACTIVE" || !socketRef.current) return;
 
     socketRef.current.emit("send_message", {
-      projectId: PROJECT_ID,
+      projectId: projectId,
       senderId: userId,
       type: "WIDGET",
       content: "Final Offer",
@@ -167,7 +167,7 @@ export function Chat({ userId, role, name, probationary = false }: ChatProps) {
       <Card className="flex h-[600px] w-full flex-col">
       <CardHeader>
         <CardTitle>
-          Project Chat — {PROJECT_ID} ({name})
+          Project Chat — {projectId} ({name})
         </CardTitle>
         {projectStatus === "ACTIVE" ? (
           <p className="text-sm font-medium text-green-600">Project Funded</p>
@@ -185,7 +185,7 @@ export function Chat({ userId, role, name, probationary = false }: ChatProps) {
                   <OfferWidget
                     key={message.id}
                     socket={socketRef.current}
-                    projectId={PROJECT_ID}
+                    projectId={projectId}
                     role={role}
                     projectStatus={projectStatus}
                     milestones={payload.milestones}
@@ -213,7 +213,7 @@ export function Chat({ userId, role, name, probationary = false }: ChatProps) {
                   <ScopeWidget
                     key={message.id}
                     socket={socketRef.current}
-                    projectId={PROJECT_ID}
+                    projectId={projectId}
                     role={role}
                     payload={payload}
                   />
