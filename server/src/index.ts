@@ -8,6 +8,8 @@ import Credentials from "@auth/core/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 
 import { prisma } from "./lib/prisma.js";
+import { authRouter } from "./routes/auth.js";
+import { verifyPassword } from "./lib/password.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { projectsRouter } from "./routes/projects.js";
 import { initializeSocket } from "./socket.js";
@@ -19,6 +21,7 @@ const isProduction = process.env.NODE_ENV === "production";
 const authConfig = {
   adapter: PrismaAdapter(prisma),
   secret: process.env.AUTH_SECRET,
+  debug: process.env.AUTH_DEBUG === "true",
   trustHost: true,
   session: {
     // JWT sessions are stored in an HttpOnly cookie; no session rows are read
@@ -43,18 +46,18 @@ const authConfig = {
     Credentials({
       name: "Credentials",
       credentials: {
-        username: { label: "Username", type: "text" },
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        const username = String(credentials?.username ?? "");
-        if (username !== "client" && username !== "builder") {
+        const email = String(credentials?.email ?? "").trim().toLowerCase();
+        const password = String(credentials?.password ?? "");
+        if (!email || !password) {
           return null;
         }
 
-        const email =
-          username === "client" ? "client@example.com" : "builder@example.com";
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) {
+        if (!user?.password || !verifyPassword(password, user.password)) {
           return null;
         }
 
@@ -107,7 +110,9 @@ app.get("/api/me", async (req, res) => {
 });
 
 app.use("/auth", ExpressAuth(authConfig as any));
+app.use("/api/auth", authRouter);
 app.use("/api/payments", paymentsRouter);
+app.use("/api/auth", authRouter);
 app.use("/api/projects", projectsRouter);
 
 const httpServer = createServer(app);

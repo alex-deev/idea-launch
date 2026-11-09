@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "../src/lib/password.js";
 
 const prisma = new PrismaClient();
 
@@ -38,6 +39,7 @@ const PROJECTS = [
       { id: "milestone-11", stageNumber: 3, title: "Final Demo", amount: 20000, releasePercent: 40, status: "PLANNED" as const },
       { id: "milestone-12", stageNumber: 4, title: "Deployment", amount: 20000, releasePercent: 30, status: "PLANNED" as const },
     ],
+  },
   {
     id: "project-999",
     title: "Client Portal Redesign",
@@ -52,6 +54,8 @@ const PROJECTS = [
     ],
   },
 ];
+
+async function main() {
   await prisma.message.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.milestone.deleteMany();
@@ -66,6 +70,7 @@ const PROJECTS = [
       name: "Client User",
       email: "client@example.com",
       role: "CLIENT",
+      password: hashPassword("password"),
     },
   });
 
@@ -75,6 +80,7 @@ const PROJECTS = [
       name: "Builder User",
       email: "builder@example.com",
       role: "BUILDER",
+      password: hashPassword("password"),
     },
   });
 
