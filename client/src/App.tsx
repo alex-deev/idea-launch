@@ -1,4 +1,12 @@
 import { useState } from "react";
+import {
+  BrowserRouter,
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,11 +28,92 @@ const INITIAL_USERS: Record<Role, UserState> = {
   BUILDER: { id: "builder-user", role: "BUILDER", name: "Builder User", probationary: true, rulesAccepted: false },
 };
 
-function App() {
-  const [role, setRole] = useState<Role>("CLIENT");
-  const [users, setUsers] = useState(INITIAL_USERS);
+function Header({ users }: { users: Record<Role, UserState> }) {
+  const location = useLocation();
+  const isBuilderRoute = location.pathname.startsWith("/builder");
 
-  const activeUser = users[role];
+  return (
+    <header className="flex items-center justify-between border-b p-4">
+      <Link to="/" className="text-lg font-semibold">
+        Idea Launch
+      </Link>
+      <div className="flex items-center gap-2">
+        {isBuilderRoute && users.BUILDER.probationary ? (
+          <Badge variant="secondary">$1,500 Budget Cap</Badge>
+        ) : null}
+        <Button
+          asChild
+          variant={location.pathname === "/client" ? "default" : "outline"}
+        >
+          <Link to="/client">Client</Link>
+        </Button>
+        <Button
+          asChild
+          variant={location.pathname === "/builder" ? "default" : "outline"}
+        >
+          <Link to="/builder">Builder</Link>
+        </Button>
+      </div>
+    </header>
+  );
+}
+
+function Home() {
+  return (
+    <div className="w-full max-w-2xl space-y-6 text-center">
+      <div className="space-y-2">
+        <h2 className="text-2xl font-semibold">Choose your workspace</h2>
+        <p className="text-muted-foreground">
+          Clients scope, fund, and approve project milestones. Builders onboard,
+          submit demos, and receive escrow releases.
+        </p>
+      </div>
+      <div className="flex justify-center gap-3">
+        <Button asChild>
+          <Link to="/client">Enter as Client</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link to="/builder">Enter as Builder</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ClientView({ user }: { user: UserState }) {
+  return (
+    <Chat
+      userId={user.id}
+      role={user.role}
+      name={user.name}
+      probationary={user.probationary}
+    />
+  );
+}
+
+function BuilderView({
+  user,
+  onComplete,
+}: {
+  user: UserState;
+  onComplete: () => void;
+}) {
+  if (!user.rulesAccepted) {
+    return <BuilderOnboarding userId={user.id} onComplete={onComplete} />;
+  }
+
+  return (
+    <Chat
+      userId={user.id}
+      role={user.role}
+      name={user.name}
+      probationary={user.probationary}
+    />
+  );
+}
+
+function App() {
+  const [users, setUsers] = useState(INITIAL_USERS);
 
   const handleOnboardingComplete = () => {
     setUsers((prev) => ({
@@ -34,43 +123,27 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="flex items-center justify-between border-b p-4">
-        <h1 className="text-lg font-semibold">Idea Launch</h1>
-        <div className="flex items-center gap-2">
-          {role === "BUILDER" && activeUser.probationary ? (
-            <Badge variant="secondary">$1,500 Budget Cap</Badge>
-          ) : null}
-          <Button
-            variant={role === "CLIENT" ? "default" : "outline"}
-            onClick={() => setRole("CLIENT")}
-          >
-            Client
-          </Button>
-          <Button
-            variant={role === "BUILDER" ? "default" : "outline"}
-            onClick={() => setRole("BUILDER")}
-          >
-            Builder
-          </Button>
-        </div>
-      </header>
-      <main className="flex justify-center p-4">
-        {role === "BUILDER" && !activeUser.rulesAccepted ? (
-          <BuilderOnboarding
-            userId={activeUser.id}
-            onComplete={handleOnboardingComplete}
-          />
-        ) : (
-          <Chat
-            userId={activeUser.id}
-            role={activeUser.role}
-            name={activeUser.name}
-            probationary={activeUser.probationary}
-          />
-        )}
-      </main>
-    </div>
+    <BrowserRouter>
+      <div className="min-h-screen bg-background">
+        <Header users={users} />
+        <main className="flex justify-center p-4">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/client" element={<ClientView user={users.CLIENT} />} />
+            <Route
+              path="/builder"
+              element={
+                <BuilderView
+                  user={users.BUILDER}
+                  onComplete={handleOnboardingComplete}
+                />
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
   );
 }
 
