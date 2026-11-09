@@ -71,7 +71,7 @@ function Header({
   const location = useLocation();
 
   return (
-    <header className="flex items-center justify-between border-b p-4">
+    <header className="shrink-0 flex items-center justify-between border-b p-4">
       <Link to="/" className="text-lg font-semibold">
         Idea Launch
       </Link>
@@ -191,37 +191,41 @@ function App() {
   return (
     <BrowserRouter>
       <TitleManager />
-      <div className="min-h-screen bg-background">
+      <div className="flex h-dvh flex-col bg-background">
         <Header user={user} signOut={signOut} />
-        <main className="flex justify-center p-4">
-          <Routes>
-            <Route path="/" element={<Home user={user} />} />
-            <Route path="/signin" element={<SignInPage />} />
-            <Route path="/signup" element={<SignUpPage />} />
-            <Route
-              path="/client"
-              element={
-                <RequireAuth role="CLIENT">
-                  {user ? <ClientView user={user} /> : null}
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/builder"
-              element={
-                <RequireAuth role="BUILDER">
-                  {user ? (
-                    <BuilderView
-                      user={user}
-                      onboarded={builderOnboarded}
-                      onComplete={() => setBuilderOnboarded(true)}
-                    />
-                  ) : null}
-                </RequireAuth>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+        <main className="flex min-h-0 flex-1 justify-center overflow-hidden p-4">
+          <div className="flex h-full w-full max-w-6xl flex-col">
+            <Routes>
+              <Route path="/" element={<div className="flex h-full items-center justify-center"><Home user={user} /></div>} />
+              <Route path="/signin" element={<div className="flex h-full items-center justify-center"><SignInPage /></div>} />
+              <Route path="/signup" element={<div className="flex h-full items-center justify-center"><SignUpPage /></div>} />
+              <Route
+                path="/client"
+                element={
+                  <RequireAuth role="CLIENT">
+                    {user ? <div className="h-full"><ClientView user={user} /></div> : null}
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/builder"
+                element={
+                  <RequireAuth role="BUILDER">
+                    {user ? (
+                      <div className="h-full">
+                        <BuilderView
+                          user={user}
+                          onboarded={builderOnboarded}
+                          onComplete={() => setBuilderOnboarded(true)}
+                        />
+                      </div>
+                    ) : null}
+                  </RequireAuth>
+                }
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
         </main>
       </div>
     </BrowserRouter>

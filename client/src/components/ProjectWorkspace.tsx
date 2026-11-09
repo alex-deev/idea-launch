@@ -152,8 +152,8 @@ export function ProjectWorkspace({
   }
 
   return (
-    <div className="flex w-full max-w-6xl gap-4">
-      <aside className="w-80 shrink-0 space-y-3">
+    <div className="flex h-full w-full gap-4">
+      <aside className="flex h-full w-80 shrink-0 flex-col gap-3 overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Project Plans</h2>
           {role === "CLIENT" ? (

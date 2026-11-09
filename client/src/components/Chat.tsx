@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { io, type Socket } from "socket.io-client";
 
+import { MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -68,6 +69,8 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
   const [projectStatus, setProjectStatus] = useState("SCOPING");
   const [project, setProject] = useState<any>(null);
   const [nextMilestoneIndex, setNextMilestoneIndex] = useState(0);
+  const [controlsOpen, setControlsOpen] = useState(false);
+  const controlsRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -109,6 +112,19 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
       socketRef.current = null;
     };
   }, [userId, role, name, projectId]);
+
+  useEffect(() => {
+    if (!controlsOpen) return;
+
+    function handleClickOutside(event: MouseEvent) {
+      if (controlsRef.current && !controlsRef.current.contains(event.target as Node)) {
+        setControlsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [controlsOpen]);
 
   const sendMessage = () => {
     const content = draft.trim();
@@ -164,17 +180,39 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
-      <Card className="flex h-[600px] w-full flex-col">
+      <Card className="flex h-full w-full flex-col">
       <CardHeader>
-        <CardTitle>
-          Project Chat — {projectId} ({name})
-        </CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="truncate">
+            {project?.title ?? `Project ${projectId}`} ({name})
+          </CardTitle>
+          <div className="relative" ref={controlsRef}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setControlsOpen((open) => !open)}
+              aria-label="Project controls"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+            {controlsOpen ? (
+              <div className="absolute right-0 top-full z-30 mt-2 w-80 max-w-[calc(100vw-2rem)]">
+                <ProjectControls
+                  socket={socketRef.current}
+                  project={project}
+                  role={role}
+                  userId={userId}
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
         {projectStatus === "ACTIVE" ? (
           <p className="text-sm font-medium text-green-600">Project Funded</p>
         ) : null}
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4 overflow-hidden">
-        <div className="flex-1 space-y-3 overflow-y-auto rounded-md border p-3">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-md border p-3">
           {messages.length === 0 ? (
             <p className="text-sm text-muted-foreground">No messages yet.</p>
           ) : (
@@ -282,12 +320,6 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
         </div>
       </CardContent>
     </Card>
-    <ProjectControls
-      socket={socketRef.current}
-      project={project}
-      role={role}
-      userId={userId}
-    />
     </div>
   );
 }
