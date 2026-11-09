@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { io, type Socket } from "socket.io-client";
 
-import { MoreVertical } from "lucide-react";
+import { ArrowDown, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -70,7 +70,9 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
   const [project, setProject] = useState<any>(null);
   const [nextMilestoneIndex, setNextMilestoneIndex] = useState(0);
   const [controlsOpen, setControlsOpen] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -126,6 +128,21 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [controlsOpen]);
 
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const updateVisibility = () => {
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      setShowScrollToBottom(distanceFromBottom > 80);
+    };
+
+    updateVisibility();
+    container.addEventListener("scroll", updateVisibility);
+    return () => container.removeEventListener("scroll", updateVisibility);
+  }, [messages]);
+
   const sendMessage = () => {
     const content = draft.trim();
     if (!content || !socketRef.current) return;
@@ -178,6 +195,12 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
     });
   };
 
+  const scrollToBottom = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  };
+
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4">
       <Card className="flex min-h-0 flex-1 flex-col">
@@ -212,7 +235,11 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
         ) : null}
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4 overflow-hidden">
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-md border p-3">
+        <div className="relative min-h-0 flex-1">
+          <div
+            ref={messagesContainerRef}
+            className="h-full space-y-3 overflow-y-auto rounded-md border p-3"
+          >
           {messages.length === 0 ? (
             <p className="text-sm text-muted-foreground">No messages yet.</p>
           ) : (
@@ -276,6 +303,18 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
               );
             })
           )}
+          </div>
+          {showScrollToBottom ? (
+            <Button
+              type="button"
+              size="icon"
+              className="absolute bottom-3 right-3 h-8 w-8 rounded-full shadow"
+              onClick={scrollToBottom}
+              aria-label="Scroll to latest messages"
+            >
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+          ) : null}
         </div>
         <div className="flex gap-2">
           {role === "CLIENT" ? (
