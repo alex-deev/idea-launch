@@ -38,10 +38,20 @@ const PROJECTS = [
       { id: "milestone-11", stageNumber: 3, title: "Final Demo", amount: 20000, releasePercent: 40, status: "PLANNED" as const },
       { id: "milestone-12", stageNumber: 4, title: "Deployment", amount: 20000, releasePercent: 30, status: "PLANNED" as const },
     ],
+  {
+    id: "project-999",
+    title: "Client Portal Redesign",
+    totalEscrow: 60000,
+    status: "SCOPING" as const,
+    builderId: null,
+    milestones: [
+      { id: "milestone-13", stageNumber: 1, title: "Agreement", amount: 15000, releasePercent: 0, status: "PLANNED" as const },
+      { id: "milestone-14", stageNumber: 2, title: "Initial Demo", amount: 15000, releasePercent: 30, status: "PLANNED" as const },
+      { id: "milestone-15", stageNumber: 3, title: "Final Demo", amount: 15000, releasePercent: 40, status: "PLANNED" as const },
+      { id: "milestone-16", stageNumber: 4, title: "Deployment", amount: 15000, releasePercent: 30, status: "PLANNED" as const },
+    ],
   },
 ];
-
-async function main() {
   await prisma.message.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.milestone.deleteMany();
@@ -77,7 +87,7 @@ async function main() {
         status: project.status,
         deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         clientId: clientUser.id,
-        builderId: builderUser.id,
+        builderId: (project as { builderId?: string | null }).builderId ?? builderUser.id,
         milestones: {
           create: project.milestones,
         },

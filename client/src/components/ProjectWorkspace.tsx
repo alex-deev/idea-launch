@@ -30,6 +30,8 @@ export function ProjectWorkspace({
   probationary,
 }: ProjectWorkspaceProps) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [availableProjects, setAvailableProjects] = useState<ProjectSummary[]>([]);
+  const [view, setView] = useState<"mine" | "available">("mine");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,20 +41,30 @@ export function ProjectWorkspace({
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(
+      const mineResponse = await fetch(
         `${API_URL}/api/projects?userId=${encodeURIComponent(userId)}&role=${role}`,
       );
-      if (!response.ok) {
-        throw new Error("Failed to load projects");
-      }
-      const data = (await response.json()) as { projects: ProjectSummary[] };
-      const loaded = data.projects ?? [];
+      if (!mineResponse.ok) throw new Error("Failed to load projects");
+      const mineData = (await mineResponse.json()) as { projects: ProjectSummary[] };
+      const loaded = mineData.projects ?? [];
       setProjects(loaded);
       setSelectedProjectId((current) =>
         current && loaded.some((project) => project.id === current)
           ? current
           : (loaded[0]?.id ?? null),
       );
+
+      if (role === "BUILDER") {
+        const availableResponse = await fetch(
+          `${API_URL}/api/projects?userId=${encodeURIComponent(userId)}&role=${role}&available=true`,
+        );
+        if (availableResponse.ok) {
+          const availableData = (await availableResponse.json()) as { projects: ProjectSummary[] };
+          setAvailableProjects(availableData.projects ?? []);
+        }
+      } else {
+        setAvailableProjects([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load projects");
     } finally {
@@ -63,6 +75,12 @@ export function ProjectWorkspace({
   useEffect(() => {
     void loadProjects();
   }, [loadProjects]);
+
+  const activeProjects = projects.filter(
+    (project) => project.status !== "COMPLETED" && project.status !== "CANCELLED",
+  );
+  const atCapacity =
+    role === "BUILDER" && activeProjects.length >= BUILDER_PROJECT_LIMIT;
 
   const handleCreateProject = async () => {
     const title = window.prompt("Project title");
@@ -102,10 +120,28 @@ export function ProjectWorkspace({
     }
   };
 
-  const activeProjects = projects.filter(
-    (project) => project.status !== "COMPLETED" && project.status !== "CANCELLED",
-  );
-  const atCapacity = role === "BUILDER" && activeProjects.length >= BUILDER_PROJECT_LIMIT;
+  const handleClaimProject = async (projectId: string) => {
+    if (atCapacity) return;
+    setError(null);
+    try {
+      const response = await fetch(`${API_URL}/api/projects/${projectId}/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ builderId: userId }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? "Failed to claim project");
+      }
+
+      await loadProjects();
+      setSelectedProjectId(projectId);
+      setView("mine");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to claim project");
+    }
+  };
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading projects...</p>;
@@ -128,6 +164,25 @@ export function ProjectWorkspace({
         </div>
 
         {role === "BUILDER" ? (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={view === "mine" ? "default" : "outline"}
+              onClick={() => setView("mine")}
+            >
+              My Projects
+            </Button>
+            <Button
+              size="sm"
+              variant={view === "available" ? "default" : "outline"}
+              onClick={() => setView("available")}
+            >
+              Available
+            </Button>
+          </div>
+        ) : null}
+
+        {role === "BUILDER" ? (
           <p className="text-xs text-muted-foreground">
             {activeProjects.length}/{BUILDER_PROJECT_LIMIT} active projects
             {atCapacity ? " (limit reached)" : ""}
@@ -137,7 +192,36 @@ export function ProjectWorkspace({
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <div className="space-y-2">
-          {projects.length === 0 ? (
+          {view === "available" && role === "BUILDER" ? (
+            availableProjects.length === 0 ? (
+              <Card>
+                <CardContent className="p-4 text-sm text-muted-foreground">
+                  No available project plans.
+                </CardContent>
+              </Card>
+            ) : (
+              availableProjects.map((project) => (
+                <div key={project.id} className="rounded-lg border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{project.title}</span>
+                    <Badge variant="outline">{project.status}</Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    ${(project.totalEscrow / 100).toFixed(2)} ·{" "}
+                    {project.milestones.length} milestones
+                  </p>
+                  <Button
+                    size="sm"
+                    className="mt-3 w-full"
+                    disabled={atCapacity}
+                    onClick={() => handleClaimProject(project.id)}
+                  >
+                    Claim Project
+                  </Button>
+                </div>
+              ))
+            )
+          ) : projects.length === 0 ? (
             <Card>
               <CardContent className="p-4 text-sm text-muted-foreground">
                 No projects yet.

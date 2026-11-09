@@ -19,8 +19,21 @@ projectsRouter.get("/", async (req, res) => {
     return;
   }
 
-  const where =
-    role === "BUILDER" ? { builderId: userId } : { clientId: userId };
+  const available = req.query.available === "true";
+
+  let where: any;
+  if (role === "BUILDER") {
+    if (available) {
+      where = {
+        builderId: null,
+        status: { notIn: ["COMPLETED", "CANCELLED"] },
+      };
+    } else {
+      where = { builderId: userId };
+    }
+  } else {
+    where = { clientId: userId };
+  }
 
   const projects = await prisma.project.findMany({
     where,
@@ -121,6 +134,55 @@ projectsRouter.post("/", async (req, res) => {
   });
 
   res.status(201).json({ project });
+});
+
+projectsRouter.post("/:id/claim", async (req, res) => {
+  const { builderId } = (req.body ?? {}) as { builderId?: string };
+
+  if (!builderId) {
+    res.status(400).json({ error: "builderId is required" });
+    return;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.id },
+  });
+
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  if (project.builderId) {
+    res.status(409).json({ error: "Project is already assigned to a builder" });
+    return;
+  }
+
+  const activeProjects = await prisma.project.count({
+    where: {
+      builderId,
+      status: { notIn: ["COMPLETED", "CANCELLED"] },
+    },
+  });
+
+  if (activeProjects >= BUILDER_PROJECT_LIMIT) {
+    res.status(409).json({
+      error: `Builder already has ${BUILDER_PROJECT_LIMIT} active projects`,
+    });
+    return;
+  }
+
+  const updated = await prisma.project.update({
+    where: { id: req.params.id },
+    data: { builderId },
+    include: {
+      milestones: { orderBy: { stageNumber: "asc" } },
+      client: { select: { id: true, name: true, email: true } },
+      builder: { select: { id: true, name: true, email: true } },
+    },
+  });
+
+  res.json({ project: updated });
 });
 
 export { toProjectSummary };
