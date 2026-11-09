@@ -1,0 +1,195 @@
+// This is your Prisma schema file.
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  role            String    @default("CLIENT")
+  ecosystems      String    @default("")
+  portfolioUrls   String    @default("")
+  probationary    Boolean   @default(true)
+  rulesAccepted   Boolean   @default(false)
+  id              String    @id @default(cuid())
+  name            String?
+  email           String?   @unique
+  emailVerified   DateTime?
+  image           String?
+  accounts        Account[]
+  sessions        Session[]
+  clientProjects  Project[] @relation("ClientProjects")
+  builderProjects Project[] @relation("BuilderProjects")
+  sentMessages    Message[] @relation("SentMessages")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Project {
+  id                 String        @id @default(cuid())
+  title              String
+  totalEscrow        Int           @default(0)
+  status             ProjectStatus @default(SCOPING)
+  clientId           String
+  builderId          String?
+  deadline           DateTime?
+  extensionRequested Boolean       @default(false)
+  extensionGranted   Boolean       @default(false)
+  cancelledAt        DateTime?
+  refundPercent      Int?
+  refundAmount       Int?
+  qualityScore       Int?
+  qualityFeedback    String?
+  latePenaltyTotal   Int           @default(0)
+  client             User          @relation("ClientProjects", fields: [clientId], references: [id], onDelete: Cascade)
+  builder            User?         @relation("BuilderProjects", fields: [builderId], references: [id], onDelete: SetNull)
+  milestones         Milestone[]
+  messages           Message[]
+  payments           Payment[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([clientId])
+  @@index([builderId])
+  @@index([status])
+}
+
+enum ProjectStatus {
+  SCOPING
+  OPEN_FOR_BIDS
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Milestone {
+  id             String          @id @default(cuid())
+  projectId      String
+  stageNumber    Int
+  title          String
+  amount         Int
+  releasePercent Int             @default(0)
+  status         MilestoneStatus @default(PLANNED)
+  dueDate        DateTime?
+  releasedAt     DateTime?
+  latePenalty    Int             @default(0)
+  demoUrl        String?
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  payments       Payment[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([projectId, stageNumber])
+  @@index([projectId])
+}
+
+enum MilestoneStatus {
+  PLANNED
+  IN_PROGRESS
+  RELEASED
+  COMPLETED
+  BLOCKED
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  projectId String
+  senderId  String?
+  type      MessageType @default(TEXT)
+  content   String
+  payload   Json?
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sender    User?       @relation("SentMessages", fields: [senderId], references: [id], onDelete: SetNull)
+  createdAt DateTime    @default(now())
+
+  @@index([projectId, createdAt])
+  @@index([senderId])
+}
+
+enum MessageType {
+  TEXT
+  WIDGET
+  DEMO_WIDGET
+  SCOPE_WIDGET
+  SYSTEM
+}
+
+enum PaymentType {
+  ESCROW_FUNDING
+  MILESTONE_TRANSFER
+}
+
+enum PaymentStatus {
+  REQUIRES_PAYMENT_METHOD
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  projectId    String
+  milestoneId  String?
+  provider     String
+  type         PaymentType
+  status       PaymentStatus
+  providerRef  String        @unique
+  amount       Int
+  currency     String        @default("usd")
+  clientSecret String?
+  metadata     Json?
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone    Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([projectId])
+  @@index([milestoneId])
+  @@index([type, status])
+}

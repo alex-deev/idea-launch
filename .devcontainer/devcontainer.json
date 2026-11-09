@@ -1,0 +1,14 @@
+{
+  "name": "Build It",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "options": ["--pull=never"]
+  },
+  "forwardPorts": [3001, 5173, 5555],
+  "postCreateCommand": "npm install --prefer-offline",
+  "remoteUser": "node",
+  "runArgs": ["--userns=keep-id", "--name", "build-it", "--memory=2g", "--cpus=2.0"],
+  "customizations": {
+    "vscode": {}
+  }
+}
