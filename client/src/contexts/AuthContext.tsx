@@ -21,7 +21,7 @@ const STORAGE_KEY = "idea-launch:fake-user";
 
 function readStoredUser(): FakeUser | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as FakeUser) : null;
   } catch {
     return null;
@@ -30,9 +30,9 @@ function readStoredUser(): FakeUser | null {
 
 function storeUser(user: FakeUser | null) {
   if (user) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user));
   } else {
-    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
   }
 }
 
