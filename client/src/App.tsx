@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BrowserRouter,
   Link,
@@ -12,25 +12,63 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BuilderOnboarding } from "@/components/BuilderOnboarding";
 import { ProjectWorkspace } from "@/components/ProjectWorkspace";
-
-type Role = "CLIENT" | "BUILDER";
+import { SignInPage } from "@/pages/SignInPage";
+import { SignUpPage } from "@/pages/SignUpPage";
+import { useAuth, type FakeUser } from "@/contexts/AuthContext";
 
 interface UserState {
   id: string;
-  role: Role;
+  role: "CLIENT" | "BUILDER";
   name: string;
   probationary: boolean;
   rulesAccepted: boolean;
 }
 
-const INITIAL_USERS: Record<Role, UserState> = {
-  CLIENT: { id: "client-user", role: "CLIENT", name: "Client User", probationary: false, rulesAccepted: true },
-  BUILDER: { id: "builder-user", role: "BUILDER", name: "Builder User", probationary: true, rulesAccepted: false },
-};
-
-function Header({ users }: { users: Record<Role, UserState> }) {
+function TitleManager() {
   const location = useLocation();
-  const isBuilderRoute = location.pathname.startsWith("/builder");
+
+  useEffect(() => {
+    const titles: Record<string, string> = {
+      "/": "Idea Launch",
+      "/signin": "Sign In — Idea Launch",
+      "/signup": "Sign Up — Idea Launch",
+      "/client": "Client Workspace — Idea Launch",
+      "/builder": "Builder Workspace — Idea Launch",
+    };
+    document.title = titles[location.pathname] ?? "Idea Launch";
+  }, [location.pathname]);
+
+  return null;
+}
+
+function RequireAuth({
+  role,
+  children,
+}: {
+  role: "CLIENT" | "BUILDER";
+  children: React.ReactNode;
+}) {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <Navigate to="/signin" replace />;
+  }
+
+  if (user.role !== role) {
+    return <Navigate to={user.role === "CLIENT" ? "/client" : "/builder"} replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function Header({
+  user,
+  signOut,
+}: {
+  user: FakeUser | null;
+  signOut: () => void;
+}) {
+  const location = useLocation();
 
   return (
     <header className="flex items-center justify-between border-b p-4">
@@ -38,27 +76,32 @@ function Header({ users }: { users: Record<Role, UserState> }) {
         Idea Launch
       </Link>
       <div className="flex items-center gap-2">
-        {isBuilderRoute && users.BUILDER.probationary ? (
+        {user ? (
+          <>
+            <span className="text-sm text-muted-foreground">{user.name}</span>
+            <Button variant="outline" size="sm" onClick={signOut}>
+              Sign out
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/signin">Sign in</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link to="/signup">Sign up</Link>
+            </Button>
+          </>
+        )}
+        {user?.role === "BUILDER" && location.pathname === "/builder" ? (
           <Badge variant="secondary">$1,500 Budget Cap</Badge>
         ) : null}
-        <Button
-          asChild
-          variant={location.pathname === "/client" ? "default" : "outline"}
-        >
-          <Link to="/client">Client</Link>
-        </Button>
-        <Button
-          asChild
-          variant={location.pathname === "/builder" ? "default" : "outline"}
-        >
-          <Link to="/builder">Builder</Link>
-        </Button>
       </div>
     </header>
   );
 }
 
-function Home() {
+function Home({ user }: { user: FakeUser | null }) {
   return (
     <div className="w-full max-w-2xl space-y-6 text-center">
       <div className="space-y-2">
@@ -69,74 +112,112 @@ function Home() {
         </p>
       </div>
       <div className="flex justify-center gap-3">
-        <Button asChild>
-          <Link to="/client">Enter as Client</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link to="/builder">Enter as Builder</Link>
-        </Button>
+        {user ? (
+          <Button asChild>
+            <Link to={user.role === "CLIENT" ? "/client" : "/builder"}>
+              Open workspace
+            </Link>
+          </Button>
+        ) : (
+          <>
+            <Button asChild>
+              <Link to="/signin">Sign in</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/signup">Create account</Link>
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function ClientView({ user }: { user: UserState }) {
+function toUserState(user: FakeUser, builderOnboarded: boolean): UserState {
+  return {
+    id: user.id,
+    role: user.role,
+    name: user.name,
+    probationary: user.role === "BUILDER" && !builderOnboarded,
+    rulesAccepted: user.role === "CLIENT" || builderOnboarded,
+  };
+}
+
+function ClientView({ user }: { user: FakeUser }) {
+  const userState = toUserState(user, true);
   return (
     <ProjectWorkspace
-      userId={user.id}
-      role={user.role}
-      name={user.name}
-      probationary={user.probationary}
+      userId={userState.id}
+      role={userState.role}
+      name={userState.name}
+      probationary={userState.probationary}
     />
   );
 }
 
 function BuilderView({
   user,
+  onboarded,
   onComplete,
 }: {
-  user: UserState;
+  user: FakeUser;
+  onboarded: boolean;
   onComplete: () => void;
 }) {
-  if (!user.rulesAccepted) {
-    return <BuilderOnboarding userId={user.id} onComplete={onComplete} />;
+  const userState = toUserState(user, onboarded);
+
+  if (!userState.rulesAccepted) {
+    return <BuilderOnboarding userId={userState.id} onComplete={onComplete} />;
   }
 
   return (
     <ProjectWorkspace
-      userId={user.id}
-      role={user.role}
-      name={user.name}
-      probationary={user.probationary}
+      userId={userState.id}
+      role={userState.role}
+      name={userState.name}
+      probationary={userState.probationary}
     />
   );
 }
 
 function App() {
-  const [users, setUsers] = useState(INITIAL_USERS);
+  const { user, signOut } = useAuth();
+  const [builderOnboarded, setBuilderOnboarded] = useState(false);
 
-  const handleOnboardingComplete = () => {
-    setUsers((prev) => ({
-      ...prev,
-      BUILDER: { ...prev.BUILDER, probationary: false, rulesAccepted: true },
-    }));
-  };
+  useEffect(() => {
+    setBuilderOnboarded(false);
+  }, [user?.id]);
 
   return (
     <BrowserRouter>
+      <TitleManager />
       <div className="min-h-screen bg-background">
-        <Header users={users} />
+        <Header user={user} signOut={signOut} />
         <main className="flex justify-center p-4">
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/client" element={<ClientView user={users.CLIENT} />} />
+            <Route path="/" element={<Home user={user} />} />
+            <Route path="/signin" element={<SignInPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
+            <Route
+              path="/client"
+              element={
+                <RequireAuth role="CLIENT">
+                  {user ? <ClientView user={user} /> : null}
+                </RequireAuth>
+              }
+            />
             <Route
               path="/builder"
               element={
-                <BuilderView
-                  user={users.BUILDER}
-                  onComplete={handleOnboardingComplete}
-                />
+                <RequireAuth role="BUILDER">
+                  {user ? (
+                    <BuilderView
+                      user={user}
+                      onboarded={builderOnboarded}
+                      onComplete={() => setBuilderOnboarded(true)}
+                    />
+                  ) : null}
+                </RequireAuth>
               }
             />
             <Route path="*" element={<Navigate to="/" replace />} />
