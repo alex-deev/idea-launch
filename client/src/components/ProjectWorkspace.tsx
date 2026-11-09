@@ -260,7 +260,7 @@ export function ProjectWorkspace({
         </div>
       </aside>
 
-      <section className="min-w-0 flex-1">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col">
         {selectedProjectId ? (
           <Chat
             key={selectedProjectId}

@@ -181,7 +181,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <Card className="flex h-full w-full flex-col">
-      <CardHeader>
+      <CardHeader className="shrink-0">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="truncate">
             {project?.title ?? `Project ${projectId}`} ({name})
