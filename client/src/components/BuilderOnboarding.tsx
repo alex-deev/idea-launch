@@ -42,8 +42,6 @@ export function BuilderOnboarding({ userId, onComplete }: BuilderOnboardingProps
     githubConnected &&
     ecosystems.length > 0 &&
     ecosystems.length <= 2 &&
-    portfolioUrl1.trim().length > 0 &&
-    portfolioUrl2.trim().length > 0 &&
     rulesAccepted;
 
   const handleSubmit = () => {
@@ -59,7 +57,7 @@ export function BuilderOnboarding({ userId, onComplete }: BuilderOnboardingProps
       {
         userId,
         ecosystems,
-        portfolioUrls: [portfolioUrl1.trim(), portfolioUrl2.trim()],
+        portfolioUrls: [portfolioUrl1.trim(), portfolioUrl2.trim()].filter(Boolean),
         rulesAccepted,
       },
       (ack: { ok?: boolean }) => {
@@ -99,7 +97,7 @@ export function BuilderOnboarding({ userId, onComplete }: BuilderOnboardingProps
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">Portfolio URL 1</label>
+          <label className="text-sm font-medium">Portfolio URL 1 (optional)</label>
           <Input
             value={portfolioUrl1}
             onChange={(event) => setPortfolioUrl1(event.target.value)}
@@ -108,7 +106,7 @@ export function BuilderOnboarding({ userId, onComplete }: BuilderOnboardingProps
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">Portfolio URL 2</label>
+          <label className="text-sm font-medium">Portfolio URL 2 (optional)</label>
           <Input
             value={portfolioUrl2}
             onChange={(event) => setPortfolioUrl2(event.target.value)}
