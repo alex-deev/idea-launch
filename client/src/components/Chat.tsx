@@ -256,25 +256,23 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
         </div>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-0 overflow-hidden">
-        {role === "CLIENT" &&
-        projectStatus === "SCOPING" &&
-        !messages.some((message) => message.type === "SCOPE_WIDGET") ? (
-          <ScopeIntakeForm
-            projectId={projectId}
-            userId={userId}
-            socket={socketRef.current}
-            projectTotal={project?.totalEscrow ?? 0}
-          />
-        ) : null}
-        <div className="relative min-h-0 flex-1">
-          <div
-            ref={messagesContainerRef}
-            className="absolute inset-0 space-y-3 overflow-y-auto rounded-md p-3"
-          >
-          {messages.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No messages yet.</p>
-          ) : (
-            messages.map((message) => {
+        {showIntakeForm ? (
+          <div className="flex flex-1 items-center justify-center">
+            <ScopeIntakeForm
+              projectId={projectId}
+              userId={userId}
+              socket={socketRef.current}
+              projectTotal={project?.totalEscrow ?? 0}
+            />
+          </div>
+        ) : (
+          <div className="relative min-h-0 flex-1">
+            <div
+              ref={messagesContainerRef}
+              className="absolute inset-0 space-y-3 overflow-y-auto rounded-md p-3"
+            >
+            {messages.length === 0 ? null : (
+              messages.map((message) => {
               const isOwnMessage = message.senderId === userId;
 
               if (message.type === "WIDGET") {
@@ -364,9 +362,9 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
                 </div>
               );
             })
-          )}
-          </div>
-          {showScrollToBottom ? (
+            )}
+            </div>
+            {showScrollToBottom ? (
             <Button
               type="button"
               size="icon"
@@ -378,6 +376,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
             </Button>
           ) : null}
         </div>
+        )}
         {!showIntakeForm ? (
         <div className="flex gap-2 border-t border-border/60 -mx-3 px-3 py-3">
           {role === "BUILDER" && projectStatus !== "ACTIVE" ? (
