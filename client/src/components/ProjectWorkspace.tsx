@@ -337,11 +337,9 @@ export function ProjectWorkspace({
             Create or claim a project to get started.
           </p>
         ) : (
-          <Card>
-            <CardContent className="p-6 text-sm text-muted-foreground">
-              Select a project to open its chat and milestone controls.
-            </CardContent>
-          </Card>
+          <p className="text-sm text-muted-foreground">
+            Select a project to open its chat and milestone controls.
+          </p>
         )}
       </section>
     </div>
