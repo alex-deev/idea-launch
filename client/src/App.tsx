@@ -9,6 +9,7 @@ import {
 } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
+import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BuilderOnboarding } from "@/components/BuilderOnboarding";
 import { ProjectWorkspace } from "@/components/ProjectWorkspace";
@@ -70,10 +71,14 @@ function Header({
   user,
   signOut,
   builderProbationary = false,
+  theme,
+  onToggleTheme,
 }: {
   user: FakeUser | null;
   signOut: () => void;
   builderProbationary?: boolean;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
 }) {
   const location = useLocation();
 
@@ -83,6 +88,14 @@ function Header({
         Idea Launch
       </Link>
       <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleTheme}
+          aria-label="Toggle theme"
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </Button>
         {user ? (
           <>
             <span className="text-sm text-muted-foreground">{user.name}</span>
@@ -190,6 +203,11 @@ function BuilderView({
 function App() {
   const { user, signOut } = useAuth();
   const [builderOnboarded, setBuilderOnboarded] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    const stored = localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark") return stored;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
 
   useEffect(() => {
     setBuilderOnboarded(false);
@@ -215,11 +233,16 @@ function App() {
     };
   }, [user?.id, user?.role]);
 
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
   return (
     <BrowserRouter>
       <TitleManager />
       <div className="flex h-dvh flex-col bg-background">
-        <Header user={user} signOut={signOut} builderProbationary={user?.role === "BUILDER" && !builderOnboarded} />
+        <Header user={user} signOut={signOut} builderProbationary={user?.role === "BUILDER" && !builderOnboarded} theme={theme} onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))} />
         <main className="flex min-h-0 flex-1 justify-center overflow-hidden p-4">
           <div className="flex h-full w-full max-w-6xl flex-col">
             <Routes>
