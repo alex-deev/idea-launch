@@ -329,7 +329,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
             </Button>
           ) : null}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 border-t border-border/60 pt-4">
           {role === "CLIENT" ? (
             <Button variant="outline" onClick={simulateScope}>
               Generate AI Scope
