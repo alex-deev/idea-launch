@@ -11,7 +11,9 @@
 | Extension | +48 hours, requested flag only; no approval flow |
 | Quality rating | Integer 1–5 after `COMPLETED` or `CANCELLED`, one score per project |
 | Scope approval | Moves project to `OPEN_FOR_BIDS` |
-| Offer acceptance | Moves project to `ACTIVE`; no payment/escrow funding |
+| Offer acceptance | Moves project to `ACTIVE` and calls `fundEscrow`: mock payments auto-succeed and activate; real Stripe returns a pending intent/client secret and leaves the project unactivated until funded |
+| Milestone payout | `approve_milestone` calls `releaseMilestone`: mock transfers auto-pay; real Stripe transfers may stay pending |
+| Payments | No webhooks yet; funding/payout status is set synchronously by the provider call |
 | Completion | Automatic when all milestones are `RELEASED`/`COMPLETED` |
 
 ---

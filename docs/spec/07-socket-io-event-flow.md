@@ -4,13 +4,13 @@
 
 | Event | Direction | Required payload | Ack | Side effects | Broadcasts |
 |---|---|---|---|---|---|
-| `join_project` | C→S | `{ projectId, userId? }` | — | Joins room; loads project + milestones | `project_updated` (to caller) |
+| `join_project` | C→S | `{ projectId, userId? }` | — | Joins room; loads project + milestones; replays message history | `project_updated`, `message_history` (to caller) |
 | `send_message` | C→S | `{ projectId, content, senderId?, type?, payload? }` | `{ ok, message }` | Inserts `Message`; special-cases scope trigger | `new_message` (room) |
 | `submit_demo` | C→S | `{ projectId, milestoneId, demoUrl?, senderId?, payload? }` | `{ ok, message, latePenalty }` | Applies late penalty; sets `demoUrl`, status `IN_PROGRESS`; inserts `DEMO_WIDGET` | `new_message`, `milestone_updated` |
 | `approve_milestone` | C→S | `{ milestoneId }` | `{ ok, milestone }` | Sets `RELEASED` + `releasedAt`; may complete project | `milestone_updated`, possibly `project_updated` |
 | `approve_scope` | C→S | `{ projectId, userId? }` | `{ ok, project }` | Sets `OPEN_FOR_BIDS`; inserts `SYSTEM` message | `project_updated`, `new_message` |
 | `submit_onboarding` | C→S | `{ userId, ecosystems[], portfolioUrls[], rulesAccepted }` | `{ ok, user }` | Updates builder profile; clears `probationary` | — |
-| `accept_offer` | C→S | `{ projectId }` | `{ ok, project }` | Sets `ACTIVE` | `project_updated` |
+| `accept_offer` | C→S | `{ projectId }` | `{ ok, project, payment, clientSecret }` | Calls `fundEscrow`: mock auto-succeeds and activates; Stripe returns pending intent/client secret | `project_updated`, `new_message` (on success) |
 | `cancel_project` | C→S | `{ projectId, userId? }` | `{ ok, project, refundPercent, refundAmount }` | Computes refund tier; sets `CANCELLED`, `cancelledAt`, refund fields; inserts `SYSTEM` message | `project_updated`, `new_message` |
 | `request_extension` | C→S | `{ projectId, userId? }` | `{ ok, project }` | Adds 48h to deadline (or now); sets `extensionRequested` | `project_updated` |
 | `submit_rating` | C→S | `{ projectId, rating 1–5, feedback?, userId? }` | `{ ok, project }` | Validates completed/cancelled; stores score/feedback; inserts `SYSTEM` message | `project_updated`, `new_message` |
@@ -34,7 +34,7 @@ stateDiagram-v2
     CANCELLED --> [*]
 ```
 
-> `accept_offer` does **not** check current status, so it can activate a project directly from `SCOPING` or `OPEN_FOR_BIDS`; it also does not set `totalEscrow` or milestone amounts. Escrow "funding" is currently a status transition only.
+> `accept_offer` calls `fundEscrow`, which validates the project and uses its recorded amounts; it can still activate from `SCOPING` or `OPEN_FOR_BIDS` (no status guard). Mock payments auto-activate; real Stripe leaves the project pending until funded.
 
 ### 7.3 Primary Happy Path (sequence)
 
@@ -46,9 +46,9 @@ sequenceDiagram
     participant S as Socket.io Server
     participant DB as PostgreSQL (Prisma)
 
-    Client->>UI: "Simulate AI Intake"
+    Client->>UI: Submit idea (ScopeIntakeForm)
     UI->>S: send_message [TRIGGER_SCOPE_GENERATION]
-    S->>DB: create SCOPE_WIDGET message (hardcoded blueprint)
+    S->>DB: synthesize scope; create SCOPE_WIDGET message
     S-->>UI: new_message (room)
     Client->>UI: Approve Blueprint
     UI->>S: approve_scope
@@ -62,8 +62,8 @@ sequenceDiagram
 
     Client->>UI: Accept & Fund Escrow
     UI->>S: accept_offer
-    S->>DB: Project → ACTIVE
-    S-->>UI: project_updated
+    S->>DB: fundEscrow (mock activates; Stripe pending)
+    S-->>UI: project_updated, new_message
 
     Builder->>UI: Submit Next Demo
     UI->>S: submit_demo (milestoneId, demoUrl)
@@ -83,11 +83,11 @@ sequenceDiagram
 - Ignores payload without `projectId`.
 - Joins the Socket.io room named `projectId`.
 - Fetches project with `milestones`; if found, emits `project_updated` **only to the joining socket**.
-- Does not fetch message history; chat history is not replayed on join (messages are in-memory on the client).
+- Fetches and emits `message_history` (all project messages, ordered by `createdAt`) to the joining socket.
 
 #### `send_message`
 - Requires `projectId` and `content`; otherwise ack error.
-- **Scope trigger:** if `content` contains the sentinel `[TRIGGER_SCOPE_GENERATION]`, creates a `SCOPE_WIDGET` message with a hardcoded blueprint payload (see §8) and returns.
+- **Scope trigger:** if `content` contains the sentinel `[TRIGGER_SCOPE_GENERATION]`, runs the Synthesis Agent (`services/synthesis.ts`) and persists a `SCOPE_WIDGET` message (see §8).
 - Otherwise creates a message with `type = data.type ?? "TEXT"` and optional JSON `payload`, including sender `{ id, name, image }`.
 - Broadcasts `new_message` to the project room.
 
@@ -120,8 +120,10 @@ sequenceDiagram
 - No GitHub verification is stored despite the UI button.
 
 #### `accept_offer`
-- Requires `projectId`; sets status `ACTIVE`; returns project with milestones.
-- Emits `project_updated`. No escrow amount validation or payment simulation.
+- Requires `projectId`; calls `fundEscrow(projectId)`.
+- Mock provider: payment succeeds and project becomes `ACTIVE`; emits `project_updated` + a `SYSTEM` message.
+- Real Stripe: returns a pending payment intent and `clientSecret`; project stays unactivated until funded.
+- Ack: `{ ok, project, payment, clientSecret }`.
 
 #### `cancel_project`
 - Requires `projectId`; loads project + milestones.

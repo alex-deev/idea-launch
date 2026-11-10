@@ -6,7 +6,7 @@
 |---|---|
 | Package manager | npm workspaces |
 | Node dev orchestration | `concurrently ^10.0.7` |
-| Scripts | `dev` (backend + frontend), `build` (all workspaces), `test` (placeholder, exits 1) |
+| Scripts | `dev` (client + server), `build` (all workspaces), `test` (placeholder, exits 1) |
 | Module type | `commonjs` at root |
 
 ### 3.2 Backend

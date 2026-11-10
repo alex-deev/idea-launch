@@ -140,7 +140,7 @@ enum MessageType {
 }
 ```
 
-### 5.9 Seed data (`backend/prisma/seed.ts`)
+### 5.9 Seed data (`server/prisma/seed.ts`)
 
 Deletes in dependency order: messages → milestones → projects → sessions → accounts → users, then creates:
 
@@ -156,7 +156,7 @@ Deletes in dependency order: messages → milestones → projects → sessions �
 | `milestone-3` | 3 | Final Demo | 25000 | 40 | PLANNED |
 | `milestone-4` | 4 | Deployment | 25000 | 30 | PLANNED |
 
-> **No migrations exist.** `backend/prisma/` contains only `schema.prisma` and `seed.ts`; a `prisma migrate dev`/`db push` is required before seeding.
+> **Migrations exist** under `server/prisma/migrations/` (`20261109000000_init`, `20261109010000_add_payments`, `20261109020000_add_user_password`). Apply with `npm run db:migrate` (dev) or `npm run prisma:deploy -w server` (prod) before seeding.
 
 ---
 

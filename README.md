@@ -87,8 +87,8 @@ events, so the existing chat UI exercises the mock provider end to end.
 
 ## Next steps
 
-1. Replace demo identity switching with the Auth.js sign-in flow in the client.
-2. Verify the Auth.js session on Socket.io connections instead of trusting `userId`.
-3. Add project list/create routes and message history replay.
-4. Wire escrow funding and payment-provider webhooks.
-5. Add tests (Vitest/Playwright) and CI.
+1. Verify the Auth.js session on Socket.io connections and REST routes instead of trusting client-supplied `userId`/`clientId`/`builderId`.
+2. Add Stripe webhook handling and async reconciliation for real payment intents/transfers.
+3. Deduct platform fees from escrow payouts and reconcile payout percentages with the business model.
+4. Add automated tests (Vitest/Playwright) and CI.
+5. Keep `docs/spec/` and `TECHNICAL_SPEC.md` in sync with code changes (see `AGENTS.md`).
