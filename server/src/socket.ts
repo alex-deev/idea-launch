@@ -27,7 +27,11 @@ export function initializeSocket(httpServer: HttpServer) {
 
       const project = await prisma.project.findUnique({
         where: { id: data.projectId },
-        include: { milestones: true },
+        include: {
+          milestones: true,
+          client: { select: { id: true, name: true } },
+          builder: { select: { id: true, name: true } },
+        },
       });
       if (project) {
         socket.emit("project_updated", { project });

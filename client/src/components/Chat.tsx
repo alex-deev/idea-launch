@@ -216,7 +216,11 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
       <CardHeader className="shrink-0 border-b border-border/60">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="truncate">
-            {project?.title ?? `Project ${projectId}`} ({name})
+            {project?.title ?? `Project ${projectId}`} (
+            {role === "CLIENT"
+              ? (project?.builder?.name ?? "Builder")
+              : (project?.client?.name ?? "Client")}
+            )
           </CardTitle>
           <div className="relative" ref={controlsRef}>
             <Button
