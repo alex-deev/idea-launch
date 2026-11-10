@@ -315,12 +315,28 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
                 );
               }
 
+              const isOwnMessage = message.senderId === userId;
+
               return (
-                <div key={message.id} className="rounded-md bg-muted/50 p-2 text-sm">
-                  <span className="font-medium">
-                    {message.sender?.name ?? message.senderId ?? "Unknown"}:
-                  </span>{" "}
-                  {message.content}
+                <div
+                  key={message.id}
+                  className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                      isOwnMessage
+                        ? "rounded-br-sm bg-primary text-primary-foreground"
+                        : "rounded-bl-sm bg-muted text-foreground"
+                    }`}
+                  >
+                    <span className="font-medium">
+                      {isOwnMessage
+                        ? "You"
+                        : (message.sender?.name ?? message.senderId ?? "Unknown")}
+                      :
+                    </span>{" "}
+                    {message.content}
+                  </div>
                 </div>
               );
             })
