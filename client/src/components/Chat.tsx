@@ -60,9 +60,17 @@ interface ChatProps {
   name: string;
   probationary?: boolean;
   projectId?: string;
+  onProjectStatusChange?: (projectId: string, status: string) => void;
 }
 
-export function Chat({ userId, role, name, probationary = false, projectId = "project-123" }: ChatProps) {
+export function Chat({
+  userId,
+  role,
+  name,
+  probationary = false,
+  projectId = "project-123",
+  onProjectStatusChange,
+}: ChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [projectStatus, setProjectStatus] = useState("SCOPING");
@@ -105,7 +113,10 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
     socket.on("project_updated", (data: { project?: any }) => {
       if (data?.project) {
         setProject(data.project);
-        if (data.project.status) setProjectStatus(data.project.status);
+        if (data.project.status) {
+          setProjectStatus(data.project.status);
+          onProjectStatusChange?.(projectId, data.project.status);
+        }
       }
     });
 
@@ -127,7 +138,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [userId, role, name, projectId]);
+  }, [userId, role, name, projectId, onProjectStatusChange]);
 
   useEffect(() => {
     if (!controlsOpen) return;

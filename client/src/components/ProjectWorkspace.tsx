@@ -39,6 +39,8 @@ export function ProjectWorkspace({
   const [isArchivedOpen, setIsArchivedOpen] = useState(false);
   const hasLoadedRef = useRef(false);
   const inFlightRef = useRef(false);
+  const selectedProjectIdRef = useRef<string | null>(null);
+  const projectStatusesRef = useRef<Record<string, string>>({});
 
   const loadProjects = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -52,6 +54,21 @@ export function ProjectWorkspace({
       if (!mineResponse.ok) throw new Error("Failed to load projects");
       const mineData = (await mineResponse.json()) as { projects: ProjectSummary[] };
       const loaded = mineData.projects ?? [];
+      const selectedId = selectedProjectIdRef.current;
+      if (selectedId) {
+        const previousStatus = projectStatusesRef.current[selectedId];
+        const nextStatus = loaded.find((project) => project.id === selectedId)?.status;
+        if (
+          previousStatus &&
+          previousStatus !== "CANCELLED" &&
+          nextStatus === "CANCELLED"
+        ) {
+          setSelectedProjectId(null);
+        }
+      }
+      projectStatusesRef.current = Object.fromEntries(
+        loaded.map((project) => [project.id, project.status]),
+      );
       setProjects((prev) =>
         JSON.stringify(prev) === JSON.stringify(loaded) ? prev : loaded,
       );
@@ -100,6 +117,34 @@ export function ProjectWorkspace({
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [loadProjects]);
+
+  useEffect(() => {
+    selectedProjectIdRef.current = selectedProjectId;
+  }, [selectedProjectId]);
+
+  const handleProjectStatusChange = useCallback(
+    (projectId: string, status: string) => {
+      projectStatusesRef.current = {
+        ...projectStatusesRef.current,
+        [projectId]: status,
+      };
+      setProjects((prev) => {
+        let changed = false;
+        const next = prev.map((project) => {
+          if (project.id === projectId && project.status !== status) {
+            changed = true;
+            return { ...project, status };
+          }
+          return project;
+        });
+        return changed ? next : prev;
+      });
+      if (status === "CANCELLED") {
+        setSelectedProjectId((current) => (current === projectId ? null : current));
+      }
+    },
+    [],
+  );
 
   const activeProjects = projects.filter(
     (project) => project.status !== "COMPLETED" && project.status !== "CANCELLED",
@@ -252,15 +297,18 @@ export function ProjectWorkspace({
                 </div>
               ))
             )
-          ) : visibleProjects.length === 0 ? (
-            <Card>
-              <CardContent className="p-4 text-sm text-muted-foreground">
-                No projects yet.
-              </CardContent>
-            </Card>
           ) : (
             <>
-              {visibleProjects.map((project) => {
+              {visibleProjects.length === 0 ? (
+                archivedProjects.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-4 text-sm text-muted-foreground">
+                      No projects yet.
+                    </CardContent>
+                  </Card>
+                ) : null
+              ) : (
+                visibleProjects.map((project) => {
                 const releasedCount = project.milestones.filter(
                   (milestone) =>
                     milestone.status === "RELEASED" || milestone.status === "COMPLETED",
@@ -287,7 +335,8 @@ export function ProjectWorkspace({
                     </p>
                   </button>
                 );
-              })}
+              })
+              )}
 
               {archivedProjects.length > 0 ? (
                 <div className="pt-2">
@@ -342,6 +391,7 @@ export function ProjectWorkspace({
             role={role}
             name={name}
             probationary={probationary}
+            onProjectStatusChange={handleProjectStatusChange}
           />
         ) : (
           null
