@@ -132,13 +132,22 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
     const container = messagesContainerRef.current;
     if (!container) return;
 
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+
+    if (distanceFromBottom <= 80) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "auto" });
+      setShowScrollToBottom(false);
+    } else {
+      setShowScrollToBottom(true);
+    }
+
     const updateVisibility = () => {
-      const distanceFromBottom =
+      const distance =
         container.scrollHeight - container.scrollTop - container.clientHeight;
-      setShowScrollToBottom(distanceFromBottom > 80);
+      setShowScrollToBottom(distance > 80);
     };
 
-    updateVisibility();
     container.addEventListener("scroll", updateVisibility);
     return () => container.removeEventListener("scroll", updateVisibility);
   }, [messages]);
