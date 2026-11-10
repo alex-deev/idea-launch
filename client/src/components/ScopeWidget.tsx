@@ -248,10 +248,12 @@ export function ScopeWidget({
           </>
         )}
 
-        {role === "CLIENT" ? (
+        {role === "CLIENT" && editable ? (
           <Button className="w-full" onClick={handleApprove}>
             Approve Blueprint
           </Button>
+        ) : role === "CLIENT" ? (
+          <p className="text-muted-foreground">Blueprint approved.</p>
         ) : (
           <p className="text-muted-foreground">Waiting for client approval.</p>
         )}

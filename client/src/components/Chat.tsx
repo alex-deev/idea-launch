@@ -324,7 +324,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
                       role={role}
                       payload={payload}
                       messageId={message.id}
-                      editable
+                      editable={projectStatus === "SCOPING"}
                     />
                   </div>
                 );
