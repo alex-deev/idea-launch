@@ -332,6 +332,10 @@ export function ProjectWorkspace({
             name={name}
             probationary={probationary}
           />
+        ) : projects.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Create or claim a project to get started.
+          </p>
         ) : (
           <Card>
             <CardContent className="p-6 text-sm text-muted-foreground">
