@@ -89,7 +89,7 @@ export function ScopeIntakeForm({
             </div>
           </div>
           <Button className="w-full" disabled={isSubmitting || !idea.trim()}>
-            {isSubmitting ? "Generating..." : "Generate scope with AI"}
+            {isSubmitting ? "Refining..." : "Refine with AI"}
           </Button>
         </form>
       </CardContent>

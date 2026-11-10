@@ -68,6 +68,11 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
   const [projectStatus, setProjectStatus] = useState("SCOPING");
   const [project, setProject] = useState<any>(null);
   const [nextMilestoneIndex, setNextMilestoneIndex] = useState(0);
+  const showIntakeForm =
+    role === "CLIENT" &&
+    projectStatus === "SCOPING" &&
+    !messages.some((message) => message.type === "SCOPE_WIDGET");
+
   const [controlsOpen, setControlsOpen] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
@@ -373,6 +378,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
             </Button>
           ) : null}
         </div>
+        {!showIntakeForm ? (
         <div className="flex gap-2 border-t border-border/60 -mx-3 px-3 py-3">
           {role === "BUILDER" && projectStatus !== "ACTIVE" ? (
             <Button
@@ -409,6 +415,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
           />
           <Button onClick={sendMessage}>Send</Button>
         </div>
+        ) : null}
       </CardContent>
     </Card>
     </div>
