@@ -3,7 +3,8 @@
 ## Start here
 - npm workspaces: `client` (React 19 + Vite + Tailwind v4 + shadcn/ui) and `server` (Express 5 + Socket.io + Auth.js v5 + Prisma 6/Postgres). Root scripts orchestrate both.
 - Entrypoints: `client/src/main.tsx` → `App.tsx`; `server/src/index.ts` → `socket.ts`. Client runs on `5173`, API on `3001` by default.
-- `docs/spec/` and the README "Next steps" are partly stale (old `frontend/`/`backend/` paths, pre-auth, pre-payments). `client/README.md` is the stock Vite template. Prefer source/config.
+- `TECHNICAL_SPEC.md` indexes `docs/spec/01–13` (overview, layout, stack, architecture, data model, API surface, socket events, AI scoping, frontend spec, config/env, business rules, known gaps, glossary); kept in sync with code per the convention below. `client/README.md` is the stock Vite template. Prefer source/config if anything drifts.
+- Convention: update affected sections of `docs/spec/` and `TECHNICAL_SPEC.md` in the same change; source/config is authoritative if they drift.
 - `.opencode/agents/frontend-developer.md` is a generic Next.js-oriented profile; this repo is a Vite SPA using React Router, not Next.js.
 
 ## Setup / commands
@@ -27,7 +28,7 @@
 
 ## Domain map
 - Project states: `SCOPING` → `OPEN_FOR_BIDS` (`approve_scope`) → `ACTIVE` (`accept_offer`/escrow funding) → `COMPLETED` (all milestones released) or `CANCELLED`.
-- New projects start `SCOPING`; builders only see `OPEN_FOR_BIDS` projects. There is no bid model: builders claim via `POST /api/projects/:id/claim`.
+- New projects start `SCOPING`. Builders can claim only unassigned `OPEN_FOR_BIDS` projects; their own assigned projects appear across other statuses. There is no bid model: builders claim via `POST /api/projects/:id/claim`.
 - Money is integer cents (`totalEscrow`, `milestone.amount`). Payouts use `milestone.amount`; `releasePercent` is display/seed metadata.
 - Realtime lifecycle mutations are Socket.io (`server/src/socket.ts`); REST handles project list/create/claim/detail and payments.
 - Chat is `Message` records and `join_project` replays history. Offers, demos, and scope blueprints are `WIDGET`/`DEMO_WIDGET`/`SCOPE_WIDGET` messages, not separate tables.
