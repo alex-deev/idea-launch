@@ -66,9 +66,17 @@ export function initializeSocket(httpServer: HttpServer) {
               project?.title ||
               "A new software project";
 
+            const requestedBudget = Number(data.payload?.budgetCents);
+            const budgetCents =
+              Number.isInteger(requestedBudget) && requestedBudget > 0
+                ? requestedBudget
+                : project?.totalEscrow || undefined;
+
             const { blueprint, source } = await synthesizeScope({
               idea,
-              budgetCents: project?.totalEscrow || undefined,
+              budgetCents,
+              timeline: data.payload?.timeline,
+              preferredStack: data.payload?.preferredStack,
             });
             console.info(`[synthesis] generated scope via ${source}`);
 
@@ -221,6 +229,23 @@ export function initializeSocket(httpServer: HttpServer) {
         if (!data?.projectId) {
           ack?.({ ok: false, error: "projectId is required" });
           return;
+        }
+
+        if (data?.payload && (data?.messageId || true)) {
+          const scopeMessageId = data.messageId;
+          const where = scopeMessageId
+            ? { id: scopeMessageId }
+            : undefined;
+          if (where) {
+            const updatedMessage = await prisma.message.update({
+              where,
+              data: {
+                payload: data.payload,
+                content: data.payload.title ?? "Project Scope Blueprint",
+              },
+            });
+            io.to(data.projectId).emit("message_updated", updatedMessage);
+          }
         }
 
         const project = await prisma.project.update({

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { DemoWidget } from "@/components/DemoWidget";
 import { OfferWidget } from "@/components/OfferWidget";
 import { ProjectControls } from "@/components/ProjectControls";
+import { ScopeIntakeForm } from "@/components/ScopeIntakeForm";
 import { ScopeWidget } from "@/components/ScopeWidget";
 import { SOCKET_URL } from "@/lib/api";
 
@@ -22,9 +23,6 @@ const OFFER_MILESTONES = [
 ];
 
 const MILESTONE_IDS = ["milestone-1", "milestone-2", "milestone-3", "milestone-4"];
-
-const DEMO_IDEA =
-  "A two-sided marketplace where clients describe a software idea, receive an AI-generated scope blueprint, and fund milestone-based escrow for vetted builders.";
 
 interface ChatMessage {
   id: string;
@@ -91,6 +89,12 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
 
     socket.on("message_history", (data: { messages?: ChatMessage[] }) => {
       setMessages(data?.messages ?? []);
+    });
+
+    socket.on("message_updated", (message: ChatMessage) => {
+      setMessages((prev) =>
+        prev.map((item) => (item.id === message.id ? message : item)),
+      );
     });
 
     socket.on("project_updated", (data: { project?: any }) => {
@@ -170,16 +174,6 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
     setDraft("");
   };
 
-  const simulateScope = () => {
-    if (role !== "CLIENT" || !socketRef.current) return;
-    socketRef.current.emit("send_message", {
-      projectId: projectId,
-      senderId: userId,
-      type: "TEXT",
-      content: `[TRIGGER_SCOPE_GENERATION] ${DEMO_IDEA}`,
-    });
-  };
-
   const submitDemo = () => {
     if (role !== "BUILDER" || projectStatus !== "ACTIVE" || !socketRef.current) return;
     if (nextMilestoneIndex >= MILESTONE_IDS.length) return;
@@ -257,6 +251,16 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
         </div>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-0 overflow-hidden">
+        {role === "CLIENT" &&
+        projectStatus === "SCOPING" &&
+        !messages.some((message) => message.type === "SCOPE_WIDGET") ? (
+          <ScopeIntakeForm
+            projectId={projectId}
+            userId={userId}
+            socket={socketRef.current}
+            projectTotal={project?.totalEscrow ?? 0}
+          />
+        ) : null}
         <div className="relative min-h-0 flex-1">
           <div
             ref={messagesContainerRef}
@@ -316,6 +320,8 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
                       projectId={projectId}
                       role={role}
                       payload={payload}
+                      messageId={message.id}
+                      editable
                     />
                   </div>
                 );
@@ -368,11 +374,6 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
           ) : null}
         </div>
         <div className="flex gap-2 border-t border-border/60 -mx-3 px-3 py-3">
-          {role === "CLIENT" ? (
-            <Button variant="outline" onClick={simulateScope}>
-              Generate AI Scope
-            </Button>
-          ) : null}
           {role === "BUILDER" && projectStatus !== "ACTIVE" ? (
             <Button
               variant="outline"
