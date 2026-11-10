@@ -217,7 +217,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
 
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-border/60">
-      <Card size="sm" className="flex min-h-0 flex-1 flex-col ring-0">
+      <Card size="sm" className="flex min-h-0 flex-1 flex-col ring-0 py-0">
       <CardHeader className="shrink-0 border-b border-border/60">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
@@ -256,7 +256,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-4 overflow-hidden">
+      <CardContent className="flex flex-1 flex-col gap-2 overflow-hidden">
         <div className="relative min-h-0 flex-1">
           <div
             ref={messagesContainerRef}
@@ -338,7 +338,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
             </Button>
           ) : null}
         </div>
-        <div className="flex gap-2 border-t border-border/60 pt-4">
+        <div className="flex gap-2 border-t border-border/60 pt-2">
           {role === "CLIENT" ? (
             <Button variant="outline" onClick={simulateScope}>
               Generate AI Scope
