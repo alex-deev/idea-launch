@@ -52,7 +52,7 @@ export function ProjectWorkspace({
       setSelectedProjectId((current) =>
         current && loaded.some((project) => project.id === current)
           ? current
-          : (loaded[0]?.id ?? null),
+          : null,
       );
 
       if (role === "BUILDER") {
@@ -332,14 +332,8 @@ export function ProjectWorkspace({
             name={name}
             probationary={probationary}
           />
-        ) : projects.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Create or claim a project to get started.
-          </p>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Select a project to open its chat and milestone controls.
-          </p>
+          null
         )}
       </section>
     </div>
