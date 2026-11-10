@@ -377,7 +377,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
           ) : null}
         </div>
         )}
-        {!showIntakeForm ? (
+        {!showIntakeForm && projectStatus !== "SCOPING" ? (
         <div className="flex gap-2 border-t border-border/60 -mx-3 px-3 py-3">
           {role === "BUILDER" && projectStatus !== "ACTIVE" ? (
             <Button
