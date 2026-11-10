@@ -75,6 +75,19 @@ export function ProjectWorkspace({
 
   useEffect(() => {
     void loadProjects();
+    const interval = window.setInterval(() => {
+      void loadProjects();
+    }, 5000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void loadProjects();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [loadProjects]);
 
   const activeProjects = projects.filter(
