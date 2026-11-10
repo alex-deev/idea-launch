@@ -218,7 +218,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-border/60">
       <Card size="sm" className="flex min-h-0 flex-1 flex-col ring-0 py-0">
-      <CardHeader className="shrink-0 !flex items-center justify-between border-b border-border/60">
+      <CardHeader className="shrink-0 !flex items-center justify-between border-b border-border/60 pt-2">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <CardTitle className="truncate">
