@@ -93,12 +93,12 @@ export function ProjectWorkspace({
   const activeProjects = projects.filter(
     (project) => project.status !== "COMPLETED" && project.status !== "CANCELLED",
   );
-  const archivedProjects = role === "BUILDER"
-    ? projects.filter((project) => project.status === "CANCELLED")
-    : [];
-  const visibleProjects = role === "CLIENT"
-    ? projects.filter((project) => project.status !== "CANCELLED")
-    : projects.filter((project) => project.status !== "CANCELLED");
+  const archivedProjects = projects.filter(
+    (project) => project.status === "CANCELLED",
+  );
+  const visibleProjects = projects.filter(
+    (project) => project.status !== "CANCELLED",
+  );
   const atCapacity =
     role === "BUILDER" && activeProjects.length >= BUILDER_PROJECT_LIMIT;
 
