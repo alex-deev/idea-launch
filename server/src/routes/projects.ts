@@ -42,7 +42,7 @@ projectsRouter.get("/", async (req, res) => {
       client: { select: { id: true, name: true, email: true } },
       builder: { select: { id: true, name: true, email: true } },
     },
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
   });
 
   res.json({ projects });

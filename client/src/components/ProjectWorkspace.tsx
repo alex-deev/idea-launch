@@ -38,10 +38,13 @@ export function ProjectWorkspace({
   const [isCreating, setIsCreating] = useState(false);
   const [isArchivedOpen, setIsArchivedOpen] = useState(false);
   const hasLoadedRef = useRef(false);
+  const inFlightRef = useRef(false);
 
   const loadProjects = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     if (!hasLoadedRef.current) setIsLoading(true);
-    setError(null);
+    setError((current) => (current === null ? current : null));
     try {
       const mineResponse = await fetch(
         `${API_URL}/api/projects?userId=${encodeURIComponent(userId)}&role=${role}`,
@@ -75,6 +78,7 @@ export function ProjectWorkspace({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load projects");
     } finally {
+      inFlightRef.current = false;
       hasLoadedRef.current = true;
       setIsLoading(false);
     }
