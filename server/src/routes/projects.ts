@@ -26,7 +26,7 @@ projectsRouter.get("/", async (req, res) => {
     if (available) {
       where = {
         builderId: null,
-        status: { notIn: ["COMPLETED", "CANCELLED"] },
+        status: "OPEN_FOR_BIDS",
       };
     } else {
       where = { builderId: userId };
