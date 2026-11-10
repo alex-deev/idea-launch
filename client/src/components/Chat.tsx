@@ -323,10 +323,10 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
                   className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                    className={`max-w-[85%] rounded-tl-2xl rounded-tr-2xl px-3 py-2 text-sm ${
                       isOwnMessage
-                        ? "rounded-br-sm bg-primary text-primary-foreground"
-                        : "rounded-bl-sm bg-muted text-foreground"
+                        ? "rounded-br-sm rounded-bl-2xl bg-primary text-primary-foreground"
+                        : "rounded-br-2xl rounded-bl-sm bg-muted text-foreground"
                     }`}
                   >
                     <span className="font-medium">
@@ -354,7 +354,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
             </Button>
           ) : null}
         </div>
-        <div className="flex gap-2 border-t border-border/60 pt-2">
+        <div className="flex gap-2 border-t border-border/60 py-3">
           {role === "CLIENT" ? (
             <Button variant="outline" onClick={simulateScope}>
               Generate AI Scope
