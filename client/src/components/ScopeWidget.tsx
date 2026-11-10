@@ -156,13 +156,9 @@ export function ScopeWidget({
               <div className="space-y-2">
                 {(scope.milestones ?? []).map((milestone, index) => (
                   <div key={`${milestone.title}-${index}`} className="flex gap-2">
-                    <Input
-                      value={milestone.title}
-                      onChange={(event) =>
-                        updateMilestone(index, "title", event.target.value)
-                      }
-                      placeholder="Milestone title"
-                    />
+                    <span className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                      {milestone.title}
+                    </span>
                     <Input
                       type="number"
                       value={milestone.amount}
