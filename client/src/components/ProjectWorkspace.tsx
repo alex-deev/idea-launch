@@ -36,6 +36,7 @@ export function ProjectWorkspace({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isArchivedOpen, setIsArchivedOpen] = useState(false);
 
   const loadProjects = useCallback(async () => {
     setIsLoading(true);
@@ -78,6 +79,12 @@ export function ProjectWorkspace({
 
   const activeProjects = projects.filter(
     (project) => project.status !== "COMPLETED" && project.status !== "CANCELLED",
+  );
+  const archivedProjects = projects.filter(
+    (project) => project.status === "CANCELLED",
+  );
+  const visibleProjects = projects.filter(
+    (project) => project.status !== "CANCELLED",
   );
   const atCapacity =
     role === "BUILDER" && activeProjects.length >= BUILDER_PROJECT_LIMIT;
@@ -221,41 +228,83 @@ export function ProjectWorkspace({
                 </div>
               ))
             )
-          ) : projects.length === 0 ? (
+          ) : visibleProjects.length === 0 ? (
             <Card>
               <CardContent className="p-4 text-sm text-muted-foreground">
                 No projects yet.
               </CardContent>
             </Card>
           ) : (
-            projects.map((project) => {
-              const releasedCount = project.milestones.filter(
-                (milestone) =>
-                  milestone.status === "RELEASED" || milestone.status === "COMPLETED",
-              ).length;
+            <>
+              {visibleProjects.map((project) => {
+                const releasedCount = project.milestones.filter(
+                  (milestone) =>
+                    milestone.status === "RELEASED" || milestone.status === "COMPLETED",
+                ).length;
 
-              return (
-                <button
-                  key={project.id}
-                  type="button"
-                  onClick={() => setSelectedProjectId(project.id)}
-                  className={`w-full rounded-lg border p-3 text-left transition ${
-                    selectedProjectId === project.id
-                      ? "border-primary bg-primary/5"
-                      : "hover:bg-muted/50"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{project.title}</span>
-                    <Badge variant="outline">{project.status}</Badge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    ${(project.totalEscrow / 100).toFixed(2)} · {releasedCount}/
-                    {project.milestones.length} milestones
-                  </p>
-                </button>
-              );
-            })
+                return (
+                  <button
+                    key={project.id}
+                    type="button"
+                    onClick={() => setSelectedProjectId(project.id)}
+                    className={`w-full rounded-lg border p-3 text-left transition ${
+                      selectedProjectId === project.id
+                        ? "border-primary bg-primary/5"
+                        : "hover:bg-muted/50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{project.title}</span>
+                      <Badge variant="outline">{project.status}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      ${(project.totalEscrow / 100).toFixed(2)} · {releasedCount}/
+                      {project.milestones.length} milestones
+                    </p>
+                  </button>
+                );
+              })}
+
+              {archivedProjects.length > 0 ? (
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-between"
+                    onClick={() => setIsArchivedOpen((open) => !open)}
+                  >
+                    Archived ({archivedProjects.length})
+                    <span>{isArchivedOpen ? "Hide" : "Show"}</span>
+                  </Button>
+                  {isArchivedOpen ? (
+                    <div className="mt-2 space-y-2">
+                      {archivedProjects.map((project) => (
+                        <button
+                          key={project.id}
+                          type="button"
+                          onClick={() => setSelectedProjectId(project.id)}
+                          className={`w-full rounded-lg border border-dashed p-3 text-left opacity-70 transition hover:opacity-100 ${
+                            selectedProjectId === project.id
+                              ? "border-primary bg-primary/5"
+                              : "hover:bg-muted/50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium">{project.title}</span>
+                            <Badge variant="outline">{project.status}</Badge>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            ${(project.totalEscrow / 100).toFixed(2)} ·{" "}
+                            {project.milestones.length} milestones
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       </aside>
