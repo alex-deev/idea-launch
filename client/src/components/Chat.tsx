@@ -260,7 +260,7 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
         <div className="relative min-h-0 flex-1">
           <div
             ref={messagesContainerRef}
-            className="h-full space-y-3 overflow-y-auto rounded-md p-3"
+            className="absolute inset-0 space-y-3 overflow-y-auto rounded-md p-3"
           >
           {messages.length === 0 ? (
             <p className="text-sm text-muted-foreground">No messages yet.</p>
