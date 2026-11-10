@@ -35,6 +35,15 @@ export function initializeSocket(httpServer: HttpServer) {
       });
       if (project) {
         socket.emit("project_updated", { project });
+
+        const messages = await prisma.message.findMany({
+          where: { projectId: data.projectId },
+          orderBy: { createdAt: "asc" },
+          include: {
+            sender: { select: { id: true, name: true, image: true } },
+          },
+        });
+        socket.emit("message_history", { messages });
       }
     });
 

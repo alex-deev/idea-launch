@@ -88,6 +88,10 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
       setMessages((prev) => [...prev, message]);
     });
 
+    socket.on("message_history", (data: { messages?: ChatMessage[] }) => {
+      setMessages(data?.messages ?? []);
+    });
+
     socket.on("project_updated", (data: { project?: any }) => {
       if (data?.project) {
         setProject(data.project);
