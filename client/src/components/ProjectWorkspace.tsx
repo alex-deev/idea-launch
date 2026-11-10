@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,9 +37,10 @@ export function ProjectWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isArchivedOpen, setIsArchivedOpen] = useState(false);
+  const hasLoadedRef = useRef(false);
 
   const loadProjects = useCallback(async () => {
-    setIsLoading(true);
+    if (!hasLoadedRef.current) setIsLoading(true);
     setError(null);
     try {
       const mineResponse = await fetch(
@@ -48,7 +49,9 @@ export function ProjectWorkspace({
       if (!mineResponse.ok) throw new Error("Failed to load projects");
       const mineData = (await mineResponse.json()) as { projects: ProjectSummary[] };
       const loaded = mineData.projects ?? [];
-      setProjects(loaded);
+      setProjects((prev) =>
+        JSON.stringify(prev) === JSON.stringify(loaded) ? prev : loaded,
+      );
       setSelectedProjectId((current) =>
         current && loaded.some((project) => project.id === current)
           ? current
@@ -61,14 +64,18 @@ export function ProjectWorkspace({
         );
         if (availableResponse.ok) {
           const availableData = (await availableResponse.json()) as { projects: ProjectSummary[] };
-          setAvailableProjects(availableData.projects ?? []);
+          const availableLoaded = availableData.projects ?? [];
+          setAvailableProjects((prev) =>
+            JSON.stringify(prev) === JSON.stringify(availableLoaded) ? prev : availableLoaded,
+          );
         }
       } else {
-        setAvailableProjects([]);
+        setAvailableProjects((prev) => (prev.length === 0 ? prev : []));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load projects");
     } finally {
+      hasLoadedRef.current = true;
       setIsLoading(false);
     }
   }, [role, userId]);
