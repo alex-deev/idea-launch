@@ -266,44 +266,58 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
             <p className="text-sm text-muted-foreground">No messages yet.</p>
           ) : (
             messages.map((message) => {
+              const isOwnMessage = message.senderId === userId;
+
               if (message.type === "WIDGET") {
                 const payload = (message.payload ?? {}) as OfferPayload;
                 return (
-                  <OfferWidget
+                  <div
                     key={message.id}
-                    socket={socketRef.current}
-                    projectId={projectId}
-                    role={role}
-                    projectStatus={projectStatus}
-                    milestones={payload.milestones}
-                    total={payload.total}
-                  />
+                    className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
+                  >
+                    <OfferWidget
+                      socket={socketRef.current}
+                      projectId={projectId}
+                      role={role}
+                      projectStatus={projectStatus}
+                      milestones={payload.milestones}
+                      total={payload.total}
+                    />
+                  </div>
                 );
               }
 
               if (message.type === "DEMO_WIDGET") {
                 const payload = (message.payload ?? {}) as DemoPayload;
                 return (
-                  <DemoWidget
+                  <div
                     key={message.id}
-                    socket={socketRef.current}
-                    milestoneId={payload.milestoneId ?? "milestone-1"}
-                    demoUrl={payload.demoUrl}
-                    role={role}
-                  />
+                    className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
+                  >
+                    <DemoWidget
+                      socket={socketRef.current}
+                      milestoneId={payload.milestoneId ?? "milestone-1"}
+                      demoUrl={payload.demoUrl}
+                      role={role}
+                    />
+                  </div>
                 );
               }
 
               if (message.type === "SCOPE_WIDGET") {
                 const payload = (message.payload ?? {}) as ScopePayload;
                 return (
-                  <ScopeWidget
+                  <div
                     key={message.id}
-                    socket={socketRef.current}
-                    projectId={projectId}
-                    role={role}
-                    payload={payload}
-                  />
+                    className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
+                  >
+                    <ScopeWidget
+                      socket={socketRef.current}
+                      projectId={projectId}
+                      role={role}
+                      payload={payload}
+                    />
+                  </div>
                 );
               }
 
@@ -315,7 +329,6 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
                 );
               }
 
-              const isOwnMessage = message.senderId === userId;
 
               return (
                 <div
