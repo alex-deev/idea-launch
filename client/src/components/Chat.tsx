@@ -3,6 +3,7 @@ import type { ChangeEvent, KeyboardEvent } from "react";
 import { io, type Socket } from "socket.io-client";
 
 import { ArrowDown, MoreVertical } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -219,13 +220,20 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
       <Card size="sm" className="flex min-h-0 flex-1 flex-col ring-0">
       <CardHeader className="shrink-0 border-b border-border/60">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="truncate">
-            {project?.title ?? `Project ${projectId}`} (
-            {role === "CLIENT"
-              ? (project?.builder?.name ?? "Builder")
-              : (project?.client?.name ?? "Client")}
-            )
-          </CardTitle>
+          <div className="flex min-w-0 items-center gap-2">
+            <CardTitle className="truncate">
+              {project?.title ?? `Project ${projectId}`} (
+              {role === "CLIENT"
+                ? (project?.builder?.name ?? "Builder")
+                : (project?.client?.name ?? "Client")}
+              )
+            </CardTitle>
+            {projectStatus === "ACTIVE" ? (
+              <Badge variant="secondary" className="shrink-0">
+                Funded
+              </Badge>
+            ) : null}
+          </div>
           <div className="relative" ref={controlsRef}>
             <Button
               variant="ghost"
@@ -247,9 +255,6 @@ export function Chat({ userId, role, name, probationary = false, projectId = "pr
             ) : null}
           </div>
         </div>
-        {projectStatus === "ACTIVE" ? (
-          <p className="text-sm font-medium text-green-600">Project Funded</p>
-        ) : null}
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4 overflow-hidden">
         <div className="relative min-h-0 flex-1">
