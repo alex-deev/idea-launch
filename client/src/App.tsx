@@ -34,8 +34,7 @@ function TitleManager() {
       "/": "Idea Launch",
       "/signin": "Sign In — Idea Launch",
       "/signup": "Sign Up — Idea Launch",
-      "/client": "Client Workspace — Idea Launch",
-      "/builder": "Builder Workspace — Idea Launch",
+      "/workspace": "Workspace — Idea Launch",
     };
     document.title = titles[location.pathname] ?? "Idea Launch";
   }, [location.pathname]);
@@ -43,13 +42,7 @@ function TitleManager() {
   return null;
 }
 
-function RequireAuth({
-  role,
-  children,
-}: {
-  role: "CLIENT" | "BUILDER";
-  children: React.ReactNode;
-}) {
+function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -60,8 +53,18 @@ function RequireAuth({
     return <Navigate to="/signin" replace />;
   }
 
-  if (user.role !== role) {
-    return <Navigate to={user.role === "CLIENT" ? "/client" : "/builder"} replace />;
+  return <>{children}</>;
+}
+
+function RedirectIfAuthenticated({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Loading session...</p>;
+  }
+
+  if (user) {
+    return <Navigate to="/workspace" replace />;
   }
 
   return <>{children}</>;
@@ -113,7 +116,7 @@ function Header({
             </Button>
           </>
         )}
-        {user?.role === "BUILDER" && location.pathname === "/builder" && builderProbationary ? (
+        {user?.role === "BUILDER" && location.pathname === "/workspace" && builderProbationary ? (
           <Badge variant="secondary">$1,500 Budget Cap</Badge>
         ) : null}
       </div>
@@ -121,22 +124,20 @@ function Header({
   );
 }
 
-function Home({ user }: { user: FakeUser | null }) {
+function LandingPage({ user }: { user: FakeUser | null }) {
   return (
     <div className="w-full max-w-2xl space-y-6 text-center">
       <div className="space-y-2">
-        <h2 className="text-2xl font-semibold">Choose your workspace</h2>
+        <h1 className="text-3xl font-semibold tracking-tight">Idea Launch</h1>
         <p className="text-muted-foreground">
-          Clients scope, fund, and approve project milestones. Builders onboard,
-          submit demos, and receive escrow releases.
+          Scope, fund, and ship projects with milestone-based escrow—clients define and approve
+          work, builders deliver demos and get paid.
         </p>
       </div>
-      <div className="flex justify-center gap-3">
+      <div className="flex flex-wrap justify-center gap-3">
         {user ? (
           <Button asChild>
-            <Link to={user.role === "CLIENT" ? "/client" : "/builder"}>
-              Open workspace
-            </Link>
+            <Link to="/workspace">Go to workspace</Link>
           </Button>
         ) : (
           <>
@@ -151,6 +152,21 @@ function Home({ user }: { user: FakeUser | null }) {
       </div>
     </div>
   );
+}
+
+function WorkspaceView({
+  user,
+  onboarded,
+  onComplete,
+}: {
+  user: FakeUser;
+  onboarded: boolean;
+  onComplete: () => void;
+}) {
+  if (user.role === "CLIENT") {
+    return <ClientView user={user} />;
+  }
+  return <BuilderView user={user} onboarded={onboarded} onComplete={onComplete} />;
 }
 
 function toUserState(user: FakeUser, builderOnboarded: boolean): UserState {
@@ -246,24 +262,41 @@ function App() {
         <main className="flex min-h-0 flex-1 justify-center overflow-hidden p-4">
           <div className="flex h-full w-full max-w-6xl flex-col">
             <Routes>
-              <Route path="/" element={<div className="flex h-full items-center justify-center"><Home user={user} /></div>} />
-              <Route path="/signin" element={<div className="flex h-full items-center justify-center"><SignInPage /></div>} />
-              <Route path="/signup" element={<div className="flex h-full items-center justify-center"><SignUpPage /></div>} />
               <Route
-                path="/client"
+                path="/"
                 element={
-                  <RequireAuth role="CLIENT">
-                    {user ? <div className="h-full"><ClientView user={user} /></div> : null}
-                  </RequireAuth>
+                  <div className="flex h-full items-center justify-center">
+                    <LandingPage user={user} />
+                  </div>
                 }
               />
               <Route
-                path="/builder"
+                path="/signin"
                 element={
-                  <RequireAuth role="BUILDER">
+                  <RedirectIfAuthenticated>
+                    <div className="flex h-full items-center justify-center">
+                      <SignInPage />
+                    </div>
+                  </RedirectIfAuthenticated>
+                }
+              />
+              <Route
+                path="/signup"
+                element={
+                  <RedirectIfAuthenticated>
+                    <div className="flex h-full items-center justify-center">
+                      <SignUpPage />
+                    </div>
+                  </RedirectIfAuthenticated>
+                }
+              />
+              <Route
+                path="/workspace"
+                element={
+                  <RequireAuth>
                     {user ? (
                       <div className="h-full">
-                        <BuilderView
+                        <WorkspaceView
                           user={user}
                           onboarded={builderOnboarded}
                           onComplete={() => setBuilderOnboarded(true)}
@@ -273,6 +306,8 @@ function App() {
                   </RequireAuth>
                 }
               />
+              <Route path="/client" element={<Navigate to="/workspace" replace />} />
+              <Route path="/builder" element={<Navigate to="/workspace" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>

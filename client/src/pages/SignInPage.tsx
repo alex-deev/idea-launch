@@ -12,7 +12,7 @@ export function SignInPage() {
 
   useEffect(() => {
     if (user) {
-      navigate(user.role === "CLIENT" ? "/client" : "/builder", { replace: true });
+      navigate("/workspace", { replace: true });
     }
   }, [user, navigate]);
   const [email, setEmail] = useState("client@example.com");
@@ -26,8 +26,8 @@ export function SignInPage() {
     setError(null);
     setIsSubmitting(true);
     try {
-      const user = await signIn(email, password, role);
-      navigate(user.role === "CLIENT" ? "/client" : "/builder", { replace: true });
+      await signIn(email, password, role);
+      navigate("/workspace", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed");
     } finally {

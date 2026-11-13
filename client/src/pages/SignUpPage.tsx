@@ -12,7 +12,7 @@ export function SignUpPage() {
 
   useEffect(() => {
     if (user) {
-      navigate(user.role === "CLIENT" ? "/client" : "/builder", { replace: true });
+      navigate("/workspace", { replace: true });
     }
   }, [user, navigate]);
   const [name, setName] = useState("");
@@ -27,8 +27,8 @@ export function SignUpPage() {
     setError(null);
     setIsSubmitting(true);
     try {
-      const user = await signUp(name, email, password, role);
-      navigate(user.role === "CLIENT" ? "/client" : "/builder", { replace: true });
+      await signUp(name, email, password, role);
+      navigate("/workspace", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign up failed");
     } finally {
