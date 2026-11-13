@@ -227,8 +227,39 @@ export async function releaseMilestone(
     );
   }
 
-  if (!Number.isInteger(milestone.amount) || milestone.amount <= 0) {
-    throw new EscrowError("Milestone amount must be a positive integer", 400);
+  if (!Number.isInteger(milestone.amount) || milestone.amount < 0) {
+    throw new EscrowError("Milestone amount must be a non-negative integer", 400);
+  }
+
+  // Agreement (0%) has no payout: mark released without creating a transfer.
+  if (milestone.amount === 0) {
+    const releasedMilestone = await prisma.milestone.update({
+      where: { id: milestone.id },
+      data: { status: "RELEASED", releasedAt: new Date() },
+    });
+
+    const allMilestones = await prisma.milestone.findMany({
+      where: { projectId: milestone.projectId },
+    });
+    const allReleased = allMilestones.every(
+      (item) => item.status === "RELEASED" || item.status === "COMPLETED",
+    );
+
+    if (allReleased) {
+      await prisma.project.update({
+        where: { id: milestone.projectId },
+        data: { status: "COMPLETED" },
+      });
+    }
+
+    const updatedProject = await getProjectWithMilestones(milestone.projectId);
+
+    return {
+      payment: null,
+      milestone: releasedMilestone,
+      project: updatedProject,
+      alreadyReleased: false,
+    };
   }
 
   const transfer = await getPaymentProvider().createMilestoneTransfer({

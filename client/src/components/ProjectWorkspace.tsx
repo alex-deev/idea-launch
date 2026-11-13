@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Chat } from "@/components/Chat";
 import { API_URL } from "@/lib/api";
+import { buildMilestones } from "@/lib/milestones";
 
 interface ProjectSummary {
   id: string;
@@ -12,6 +14,7 @@ interface ProjectSummary {
   status: string;
   totalEscrow: number;
   milestones: { id: string; title: string; status: string }[];
+  offers?: { id: string; status: string }[];
 }
 
 interface ProjectWorkspaceProps {
@@ -22,6 +25,29 @@ interface ProjectWorkspaceProps {
 }
 
 const BUILDER_PROJECT_LIMIT = 3;
+const PLANS_COLLAPSED_STORAGE_KEY = "idea-launch:project-plans-collapsed";
+const PLANS_NARROW_QUERY = "(max-width: 1023px)";
+const PLANS_PANEL_ID = "project-plans-panel";
+
+function readPlansCollapsedPreference() {
+  try {
+    return window.localStorage.getItem(PLANS_COLLAPSED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writePlansCollapsedPreference(collapsed: boolean) {
+  try {
+    window.localStorage.setItem(PLANS_COLLAPSED_STORAGE_KEY, String(collapsed));
+  } catch {
+    // Storage can be unavailable; toggle still works this session.
+  }
+}
+
+function isNarrowViewport() {
+  return window.matchMedia(PLANS_NARROW_QUERY).matches;
+}
 
 export function ProjectWorkspace({
   userId,
@@ -37,6 +63,10 @@ export function ProjectWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isArchivedOpen, setIsArchivedOpen] = useState(false);
+  const [isPlansCollapsed, setIsPlansCollapsed] = useState(
+    () => isNarrowViewport() || readPlansCollapsedPreference(),
+  );
+  const [isNarrow, setIsNarrow] = useState(isNarrowViewport);
   const hasLoadedRef = useRef(false);
   const inFlightRef = useRef(false);
   const selectedProjectIdRef = useRef<string | null>(null);
@@ -54,10 +84,24 @@ export function ProjectWorkspace({
       if (!mineResponse.ok) throw new Error("Failed to load projects");
       const mineData = (await mineResponse.json()) as { projects: ProjectSummary[] };
       const loaded = mineData.projects ?? [];
+
+      let availableLoaded: ProjectSummary[] = [];
+      if (role === "BUILDER") {
+        const availableResponse = await fetch(
+          `${API_URL}/api/projects?userId=${encodeURIComponent(userId)}&role=${role}&available=true`,
+        );
+        if (availableResponse.ok) {
+          const availableData = (await availableResponse.json()) as { projects: ProjectSummary[] };
+          availableLoaded = availableData.projects ?? [];
+        }
+      }
+
+      const allKnown = [...loaded, ...availableLoaded];
       const selectedId = selectedProjectIdRef.current;
       if (selectedId) {
         const previousStatus = projectStatusesRef.current[selectedId];
-        const nextStatus = loaded.find((project) => project.id === selectedId)?.status;
+        const nextStatus = allKnown.find((project) => project.id === selectedId)?.status;
+        // Only close on transition into CANCELLED (not on re-reported CANCELLED).
         if (
           previousStatus &&
           previousStatus !== "CANCELLED" &&
@@ -66,32 +110,26 @@ export function ProjectWorkspace({
           setSelectedProjectId(null);
         }
       }
-      projectStatusesRef.current = Object.fromEntries(
-        loaded.map((project) => [project.id, project.status]),
-      );
+
+      // Track statuses for both mine and available projects.
+      projectStatusesRef.current = {
+        ...projectStatusesRef.current,
+        ...Object.fromEntries(allKnown.map((project) => [project.id, project.status])),
+      };
+
       setProjects((prev) =>
         JSON.stringify(prev) === JSON.stringify(loaded) ? prev : loaded,
       );
-      setSelectedProjectId((current) =>
-        current && loaded.some((project) => project.id === current)
-          ? current
-          : null,
+      setAvailableProjects((prev) =>
+        JSON.stringify(prev) === JSON.stringify(availableLoaded) ? prev : availableLoaded,
       );
 
-      if (role === "BUILDER") {
-        const availableResponse = await fetch(
-          `${API_URL}/api/projects?userId=${encodeURIComponent(userId)}&role=${role}&available=true`,
-        );
-        if (availableResponse.ok) {
-          const availableData = (await availableResponse.json()) as { projects: ProjectSummary[] };
-          const availableLoaded = availableData.projects ?? [];
-          setAvailableProjects((prev) =>
-            JSON.stringify(prev) === JSON.stringify(availableLoaded) ? prev : availableLoaded,
-          );
-        }
-      } else {
-        setAvailableProjects((prev) => (prev.length === 0 ? prev : []));
-      }
+      // Keep selection if it exists in any loaded list (e.g. builder viewing an open project).
+      setSelectedProjectId((current) => {
+        if (!current) return null;
+        const exists = loaded.some((p) => p.id === current) || availableLoaded.some((p) => p.id === current);
+        return exists ? current : null;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load projects");
     } finally {
@@ -122,8 +160,40 @@ export function ProjectWorkspace({
     selectedProjectIdRef.current = selectedProjectId;
   }, [selectedProjectId]);
 
+  useEffect(() => {
+    const query = window.matchMedia(PLANS_NARROW_QUERY);
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsNarrow(event.matches);
+      setIsPlansCollapsed(event.matches ? true : readPlansCollapsedPreference());
+    };
+    query.addEventListener("change", handleChange);
+    return () => query.removeEventListener("change", handleChange);
+  }, []);
+
+  const setPlansCollapsed = useCallback(
+    (collapsed: boolean) => {
+      setIsPlansCollapsed(collapsed);
+      if (!isNarrow) writePlansCollapsedPreference(collapsed);
+    },
+    [isNarrow],
+  );
+
+  const selectProject = useCallback(
+    (projectId: string) => {
+      setSelectedProjectId(projectId);
+      if (isNarrow) setIsPlansCollapsed(true);
+    },
+    [isNarrow],
+  );
+
+  const closeProject = useCallback(() => {
+    setSelectedProjectId(null);
+    if (isNarrow) setIsPlansCollapsed(false);
+  }, [isNarrow]);
+
   const handleProjectStatusChange = useCallback(
     (projectId: string, status: string) => {
+      const previousStatus = projectStatusesRef.current[projectId];
       projectStatusesRef.current = {
         ...projectStatusesRef.current,
         [projectId]: status,
@@ -139,22 +209,37 @@ export function ProjectWorkspace({
         });
         return changed ? next : prev;
       });
-      if (status === "CANCELLED") {
+      setAvailableProjects((prev) => {
+        let changed = false;
+        const next = prev.map((project) => {
+          if (project.id === projectId && project.status !== status) {
+            changed = true;
+            return { ...project, status };
+          }
+          return project;
+        });
+        return changed ? next : prev;
+      });
+      if (
+        status === "CANCELLED" &&
+        previousStatus !== undefined &&
+        previousStatus !== "CANCELLED"
+      ) {
         setSelectedProjectId((current) => (current === projectId ? null : current));
       }
+      if (status === "ACTIVE" || status === "COMPLETED") {
+        // Refresh to move accepted projects into "mine"
+        void loadProjects();
+      }
     },
-    [],
+    [loadProjects],
   );
 
   const activeProjects = projects.filter(
     (project) => project.status !== "COMPLETED" && project.status !== "CANCELLED",
   );
-  const archivedProjects = projects.filter(
-    (project) => project.status === "CANCELLED",
-  );
-  const visibleProjects = projects.filter(
-    (project) => project.status !== "CANCELLED",
-  );
+  const archivedProjects = projects.filter((project) => project.status === "CANCELLED");
+  const visibleProjects = projects.filter((project) => project.status !== "CANCELLED");
   const atCapacity =
     role === "BUILDER" && activeProjects.length >= BUILDER_PROJECT_LIMIT;
 
@@ -165,19 +250,15 @@ export function ProjectWorkspace({
     setIsCreating(true);
     setError(null);
     try {
+      const totalEscrow = 100000;
       const response = await fetch(`${API_URL}/api/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim(),
           clientId: userId,
-          totalEscrow: 100000,
-          milestones: [
-            { title: "Agreement", amount: 25000, releasePercent: 0 },
-            { title: "Initial Demo", amount: 25000, releasePercent: 30 },
-            { title: "Final Demo", amount: 25000, releasePercent: 40 },
-            { title: "Deployment", amount: 25000, releasePercent: 30 },
-          ],
+          totalEscrow,
+          milestones: buildMilestones(totalEscrow),
         }),
       });
 
@@ -188,34 +269,11 @@ export function ProjectWorkspace({
 
       const data = (await response.json()) as { project: ProjectSummary };
       setProjects((current) => [data.project, ...current]);
-      setSelectedProjectId(data.project.id);
+      selectProject(data.project.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create project");
     } finally {
       setIsCreating(false);
-    }
-  };
-
-  const handleClaimProject = async (projectId: string) => {
-    if (atCapacity) return;
-    setError(null);
-    try {
-      const response = await fetch(`${API_URL}/api/projects/${projectId}/claim`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ builderId: userId }),
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error ?? "Failed to claim project");
-      }
-
-      await loadProjects();
-      setSelectedProjectId(projectId);
-      setView("mine");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to claim project");
     }
   };
 
@@ -229,158 +287,195 @@ export function ProjectWorkspace({
 
   return (
     <div className="flex h-full w-full gap-4">
-      <aside className="flex h-full w-80 shrink-0 flex-col gap-3 overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Project Plans</h2>
-          {role === "CLIENT" ? (
-            <Button size="sm" onClick={handleCreateProject} disabled={isCreating}>
-              New
-            </Button>
-          ) : null}
-        </div>
-
-        {role === "BUILDER" ? (
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant={view === "mine" ? "default" : "outline"}
-              onClick={() => setView("mine")}
-            >
-              My Projects
-            </Button>
-            <Button
-              size="sm"
-              variant={view === "available" ? "default" : "outline"}
-              onClick={() => setView("available")}
-            >
-              Available
-            </Button>
-          </div>
-        ) : null}
-
-        {role === "BUILDER" ? (
-          <p className="text-xs text-muted-foreground">
-            {activeProjects.length}/{BUILDER_PROJECT_LIMIT} active projects
-            {atCapacity ? " (limit reached)" : ""}
-          </p>
-        ) : null}
-
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
-
-        <div className="space-y-2">
-          {view === "available" && role === "BUILDER" ? (
-            availableProjects.length === 0 ? (
-              <Card>
-                <CardContent className="p-4 text-sm text-muted-foreground">
-                  No available project plans.
-                </CardContent>
-              </Card>
-            ) : (
-              availableProjects.map((project) => (
-                <div key={project.id} className="rounded-lg border p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{project.title}</span>
-                    <Badge variant="outline">{project.status}</Badge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    ${(project.totalEscrow / 100).toFixed(2)} ·{" "}
-                    {project.milestones.length} milestones
-                  </p>
-                  <Button
-                    size="sm"
-                    className="mt-3 w-full"
-                    disabled={atCapacity}
-                    onClick={() => handleClaimProject(project.id)}
-                  >
-                    Claim Project
-                  </Button>
-                </div>
-              ))
-            )
-          ) : (
-            <>
-              {visibleProjects.length === 0 ? (
-                archivedProjects.length === 0 ? (
-                  <Card>
-                    <CardContent className="p-4 text-sm text-muted-foreground">
-                      No projects yet.
-                    </CardContent>
-                  </Card>
-                ) : null
-              ) : (
-                visibleProjects.map((project) => {
-                const releasedCount = project.milestones.filter(
-                  (milestone) =>
-                    milestone.status === "RELEASED" || milestone.status === "COMPLETED",
-                ).length;
-
-                return (
-                  <button
-                    key={project.id}
-                    type="button"
-                    onClick={() => setSelectedProjectId(project.id)}
-                    className={`w-full rounded-lg border p-3 text-left transition ${
-                      selectedProjectId === project.id
-                        ? "border-primary bg-primary/5"
-                        : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{project.title}</span>
-                      <Badge variant="outline">{project.status}</Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      ${(project.totalEscrow / 100).toFixed(2)} · {releasedCount}/
-                      {project.milestones.length} milestones
-                    </p>
-                  </button>
-                );
-              })
-              )}
-
-              {archivedProjects.length > 0 ? (
-                <div className="pt-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-between"
-                    onClick={() => setIsArchivedOpen((open) => !open)}
-                  >
-                    Archived ({archivedProjects.length})
-                    <span>{isArchivedOpen ? "Hide" : "Show"}</span>
-                  </Button>
-                  {isArchivedOpen ? (
-                    <div className="mt-2 space-y-2">
-                      {archivedProjects.map((project) => (
-                        <button
-                          key={project.id}
-                          type="button"
-                          onClick={() => setSelectedProjectId(project.id)}
-                          className={`w-full rounded-lg border border-dashed p-3 text-left opacity-70 transition hover:opacity-100 ${
-                            selectedProjectId === project.id
-                              ? "border-primary bg-primary/5"
-                              : "hover:bg-muted/50"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-medium">{project.title}</span>
-                            <Badge variant="outline">{project.status}</Badge>
-                          </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            ${(project.totalEscrow / 100).toFixed(2)} ·{" "}
-                            {project.milestones.length} milestones
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+      {isPlansCollapsed ? (
+        <aside
+          id={PLANS_PANEL_ID}
+          aria-label="Project plans"
+          className="flex h-full w-12 shrink-0 flex-col"
+        >
+          <button
+            type="button"
+            onClick={() => setPlansCollapsed(false)}
+            aria-expanded={false}
+            aria-controls={PLANS_PANEL_ID}
+            aria-label={`Expand project plans (${visibleProjects.length})`}
+            title="Expand project plans"
+            className="flex h-full w-full flex-col items-center gap-3 rounded-lg border border-transparent py-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <PanelLeftOpen className="size-4 shrink-0" aria-hidden="true" />
+            <span className="text-[0.7rem] font-semibold tracking-wider uppercase [writing-mode:vertical-rl]">
+              Project Plans
+            </span>
+            <Badge variant="outline">{visibleProjects.length}</Badge>
+          </button>
+        </aside>
+      ) : (
+        <aside
+          id={PLANS_PANEL_ID}
+          aria-label="Project plans"
+          className="flex h-full w-80 shrink-0 flex-col gap-3 overflow-y-auto"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Project Plans</h2>
+            <div className="flex items-center gap-1">
+              {role === "CLIENT" ? (
+                <Button size="sm" onClick={handleCreateProject} disabled={isCreating}>
+                  New
+                </Button>
               ) : null}
-            </>
-          )}
-        </div>
-      </aside>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setPlansCollapsed(true)}
+                aria-expanded
+                aria-controls={PLANS_PANEL_ID}
+                aria-label="Collapse project plans"
+                title="Collapse project plans"
+              >
+                <PanelLeftClose aria-hidden="true" />
+              </Button>
+            </div>
+          </div>
+
+          {role === "BUILDER" ? (
+            <div className="flex gap-2">
+              <Button size="sm" variant={view === "mine" ? "default" : "outline"} onClick={() => setView("mine")}>
+                My Projects
+              </Button>
+              <Button size="sm" variant={view === "available" ? "default" : "outline"} onClick={() => setView("available")}>
+                Open for offers
+              </Button>
+            </div>
+          ) : null}
+
+          {role === "BUILDER" ? (
+            <p className="text-xs text-muted-foreground">
+              {activeProjects.length}/{BUILDER_PROJECT_LIMIT} active projects
+              {atCapacity ? " (limit reached)" : ""}
+            </p>
+          ) : null}
+
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
+          <div className="space-y-2">
+            {view === "available" && role === "BUILDER" ? (
+              availableProjects.length === 0 ? (
+                <Card>
+                  <CardContent className="p-4 text-sm text-muted-foreground">
+                    No projects open for offers.
+                  </CardContent>
+                </Card>
+              ) : (
+                availableProjects.map((project) => {
+                  const myOfferStatus = project.offers?.[0]?.status;
+                  return (
+                    <div key={project.id} className="rounded-lg border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">{project.title}</span>
+                        <Badge variant="outline">{project.status}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        ${(project.totalEscrow / 100).toFixed(2)} · {project.milestones.length} milestones
+                      </p>
+                      {myOfferStatus ? (
+                        <p className="mt-1 text-xs text-muted-foreground">Your offer: {myOfferStatus}</p>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        className="mt-3 w-full"
+                        variant="outline"
+                        onClick={() => selectProject(project.id)}
+                      >
+                        {myOfferStatus ? "View / manage offer" : "View plan & submit offer"}
+                      </Button>
+                    </div>
+                  );
+                })
+              )
+            ) : (
+              <>
+                {visibleProjects.length === 0 ? (
+                  archivedProjects.length === 0 ? (
+                    <Card>
+                      <CardContent className="p-4 text-sm text-muted-foreground">
+                        No projects yet.
+                      </CardContent>
+                    </Card>
+                  ) : null
+                ) : (
+                  visibleProjects.map((project) => {
+                    const releasedCount = project.milestones.filter(
+                      (milestone) =>
+                        milestone.status === "RELEASED" || milestone.status === "COMPLETED",
+                    ).length;
+
+                    return (
+                      <button
+                        key={project.id}
+                        type="button"
+                        onClick={() => selectProject(project.id)}
+                        className={`w-full rounded-lg border p-3 text-left transition ${
+                          selectedProjectId === project.id
+                            ? "border-primary bg-primary/5"
+                            : "hover:bg-muted/50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium">{project.title}</span>
+                          <Badge variant="outline">{project.status}</Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          ${(project.totalEscrow / 100).toFixed(2)} · {releasedCount}/
+                          {project.milestones.length} milestones
+                        </p>
+                      </button>
+                    );
+                  })
+                )}
+
+                {archivedProjects.length > 0 ? (
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-between"
+                      onClick={() => setIsArchivedOpen((open) => !open)}
+                    >
+                      Archived ({archivedProjects.length})
+                      <span>{isArchivedOpen ? "Hide" : "Show"}</span>
+                    </Button>
+                    {isArchivedOpen ? (
+                      <div className="mt-2 space-y-2">
+                        {archivedProjects.map((project) => (
+                          <button
+                            key={project.id}
+                            type="button"
+                            onClick={() => selectProject(project.id)}
+                            className={`w-full rounded-lg border border-dashed p-3 text-left opacity-70 transition hover:opacity-100 ${
+                              selectedProjectId === project.id
+                                ? "border-primary bg-primary/5"
+                                : "hover:bg-muted/50"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium">{project.title}</span>
+                              <Badge variant="outline">{project.status}</Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              ${(project.totalEscrow / 100).toFixed(2)} · {project.milestones.length} milestones
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
+        </aside>
+      )}
 
       <section className="flex min-h-0 min-w-0 flex-1 flex-col">
         {selectedProjectId ? (
@@ -392,9 +487,14 @@ export function ProjectWorkspace({
             name={name}
             probationary={probationary}
             onProjectStatusChange={handleProjectStatusChange}
+            onClose={closeProject}
           />
         ) : (
-          null
+          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border/60 p-6">
+            <p className="max-w-xs text-center text-sm text-muted-foreground">
+              No project open. Pick one from Project Plans to see its milestones and chat.
+            </p>
+          </div>
         )}
       </section>
     </div>

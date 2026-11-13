@@ -27,6 +27,7 @@ model User {
   sessions        Session[]
   clientProjects  Project[] @relation("ClientProjects")
   builderProjects Project[] @relation("BuilderProjects")
+  offers          Offer[]   @relation("BuilderOffers")
   sentMessages    Message[] @relation("SentMessages")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -78,6 +79,8 @@ model Project {
   status             ProjectStatus @default(SCOPING)
   clientId           String
   builderId          String?
+  selectedOfferId    String?       @unique
+  acceptedOfferId    String?       @unique
   deadline           DateTime?
   extensionRequested Boolean       @default(false)
   extensionGranted   Boolean       @default(false)
@@ -89,6 +92,9 @@ model Project {
   latePenaltyTotal   Int           @default(0)
   client             User          @relation("ClientProjects", fields: [clientId], references: [id], onDelete: Cascade)
   builder            User?         @relation("BuilderProjects", fields: [builderId], references: [id], onDelete: SetNull)
+  selectedOffer      Offer?        @relation("ProjectSelectedOffer", fields: [selectedOfferId], references: [id], onDelete: SetNull)
+  acceptedOffer      Offer?        @relation("ProjectAcceptedOffer", fields: [acceptedOfferId], references: [id], onDelete: SetNull)
+  offers             Offer[]       @relation("ProjectOffers")
   milestones         Milestone[]
   messages           Message[]
   payments           Payment[]
@@ -108,22 +114,43 @@ enum ProjectStatus {
   CANCELLED
 }
 
+enum OfferStatus {
+  SUBMITTED
+  SELECTED
+  BLOCKED
+  FINAL
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum LongTermCadence {
+  NONE
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  ONE_TIME
+}
+
 model Milestone {
-  id             String          @id @default(cuid())
-  projectId      String
-  stageNumber    Int
-  title          String
-  amount         Int
-  releasePercent Int             @default(0)
-  status         MilestoneStatus @default(PLANNED)
-  dueDate        DateTime?
-  releasedAt     DateTime?
-  latePenalty    Int             @default(0)
-  demoUrl        String?
-  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  payments       Payment[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id                   String          @id @default(cuid())
+  projectId            String
+  stageNumber          Int
+  title                String
+  amount               Int
+  releasePercent       Int             @default(0)
+  status               MilestoneStatus @default(PLANNED)
+  dueDate              DateTime?
+  releasedAt           DateTime?
+  latePenalty          Int             @default(0)
+  demoUrl              String?
+  revisionRequestedAt  DateTime?
+  revisionReason       String?
+  currentDemoMessageId String?
+  project              Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  payments             Payment[]
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 
   @@unique([projectId, stageNumber])
   @@index([projectId])
@@ -132,6 +159,7 @@ model Milestone {
 enum MilestoneStatus {
   PLANNED
   IN_PROGRESS
+  CHANGES_REQUESTED
   RELEASED
   COMPLETED
   BLOCKED
@@ -158,6 +186,31 @@ enum MessageType {
   DEMO_WIDGET
   SCOPE_WIDGET
   SYSTEM
+}
+
+model Offer {
+  id                   String          @id @default(cuid())
+  projectId            String
+  builderId            String
+  status               OfferStatus     @default(SUBMITTED)
+  totalCents           Int
+  milestonesSnapshot   Json
+  longTermAmountCents  Int?
+  longTermCadence      LongTermCadence @default(NONE)
+  longTermNotes        String?
+  submittedAt          DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  finalizedAt          DateTime?
+  withdrawnAt          DateTime?
+  project              Project         @relation("ProjectOffers", fields: [projectId], references: [id], onDelete: Cascade)
+  builder              User            @relation("BuilderOffers", fields: [builderId], references: [id], onDelete: Cascade)
+  selectedByProject    Project?        @relation("ProjectSelectedOffer")
+  acceptedByProject    Project?        @relation("ProjectAcceptedOffer")
+
+  @@unique([projectId, builderId])
+  @@index([projectId])
+  @@index([builderId])
+  @@index([status])
 }
 
 enum PaymentType {

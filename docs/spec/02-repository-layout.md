@@ -59,7 +59,7 @@ idea-launch/
     │   │   └── password.ts      # scrypt hash/verify
     │   ├── routes/
     │   │   ├── auth.ts          # POST /api/auth/register
-    │   │   ├── projects.ts      # list/detail/create/claim
+    │   │   ├── projects.ts      # list/detail/create (and offer-related reads as applicable)
     │   │   └── payments.ts      # config, audit trail, fund/release
     │   └── services/
     │       ├── synthesis.ts     # Gemini structured-output scoping agent

@@ -1,18 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { Socket } from "socket.io-client";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  buildMilestones,
+  normalizeMilestones,
+  sumMilestoneAmounts,
+} from "@/lib/milestones";
 
 interface ScopePayload {
   title?: string;
   executiveSummary?: string;
   technicalArchitecture?: string;
   coreFeatures?: string[];
-  milestones?: { title: string; amount: number }[];
+  milestones?: { title: string; amount: number; releasePercent?: number }[];
   outOfScope?: string[];
+  budgetCents?: number;
+  appKinds?: string[];
+  appKindOther?: string;
 }
 
 interface ScopeWidgetProps {
@@ -22,6 +30,7 @@ interface ScopeWidgetProps {
   payload?: ScopePayload;
   messageId?: string;
   editable?: boolean;
+  totalCents?: number;
 }
 
 export function ScopeWidget({
@@ -31,46 +40,62 @@ export function ScopeWidget({
   payload,
   messageId,
   editable = false,
+  totalCents,
 }: ScopeWidgetProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<ScopePayload>(payload ?? {});
 
+  const canEdit = editable && role === "CLIENT";
+  const showArchitecture = role !== "CLIENT";
+
+  const resolvedTotal = useMemo(() => {
+    if (typeof totalCents === "number" && totalCents > 0) return totalCents;
+    const payloadBudget = (payload as { budgetCents?: number } | undefined)?.budgetCents;
+    if (typeof payloadBudget === "number" && payloadBudget > 0) return payloadBudget;
+    const milestoneSum = sumMilestoneAmounts(payload?.milestones);
+    return milestoneSum > 0 ? milestoneSum : 0;
+  }, [payload, totalCents]);
+
+  const normalizedView = useMemo<ScopePayload>(() => {
+    const base = payload ?? {};
+    return {
+      ...base,
+      milestones: normalizeMilestones(resolvedTotal, base.milestones),
+    };
+  }, [payload, resolvedTotal]);
+
   useEffect(() => {
     if (!isEditing) {
-      setDraft(payload ?? {});
+      setDraft(normalizedView);
     }
-  }, [isEditing, payload]);
+  }, [isEditing, normalizedView]);
 
-  const canEdit = editable && role === "CLIENT";
+  const startEditing = () => {
+    setDraft({
+      ...normalizedView,
+      milestones: buildMilestones(resolvedTotal),
+    });
+    setIsEditing(true);
+  };
+
+  const approvePayload = useMemo<ScopePayload>(() => {
+    const base = isEditing ? draft : normalizedView;
+    return {
+      ...base,
+      milestones: buildMilestones(resolvedTotal),
+    };
+  }, [draft, isEditing, normalizedView, resolvedTotal]);
 
   const handleApprove = () => {
     socket?.emit("approve_scope", {
       projectId,
       messageId,
-      payload: isEditing ? draft : (payload ?? {}),
+      payload: approvePayload,
     });
     setIsEditing(false);
   };
 
-  const scope = isEditing ? draft : (payload ?? {});
-
-  const updateMilestone = (
-    index: number,
-    field: "title" | "amount",
-    value: string,
-  ) => {
-    setDraft((current) => {
-      const milestones = [...(current.milestones ?? [])];
-      const milestone = { ...(milestones[index] ?? { title: "", amount: 0 }) };
-      if (field === "title") {
-        milestone.title = value;
-      } else {
-        milestone.amount = Number(value) || 0;
-      }
-      milestones[index] = milestone;
-      return { ...current, milestones };
-    });
-  };
+  const scope = isEditing ? draft : normalizedView;
 
   return (
     <Card className="w-full max-w-2xl border-indigo-300">
@@ -93,7 +118,7 @@ export function ScopeWidget({
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => setIsEditing((value) => !value)}
+              onClick={() => (isEditing ? setIsEditing(false) : startEditing())}
             >
               {isEditing ? "Cancel" : "Edit"}
             </Button>
@@ -118,20 +143,22 @@ export function ScopeWidget({
               />
             </section>
 
-            <section className="space-y-2">
-              <h3 className="font-semibold">Technical Architecture</h3>
-              <textarea
-                className="w-full rounded-md border px-3 py-2 text-sm"
-                value={scope.technicalArchitecture ?? ""}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    technicalArchitecture: event.target.value,
-                  }))
-                }
-                rows={3}
-              />
-            </section>
+            {showArchitecture ? (
+              <section className="space-y-2">
+                <h3 className="font-semibold">Technical Architecture</h3>
+                <textarea
+                  className="w-full rounded-md border px-3 py-2 text-sm"
+                  value={scope.technicalArchitecture ?? ""}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      technicalArchitecture: event.target.value,
+                    }))
+                  }
+                  rows={3}
+                />
+              </section>
+            ) : null}
 
             <section className="space-y-2">
               <h3 className="font-semibold">Core Features</h3>
@@ -153,23 +180,17 @@ export function ScopeWidget({
 
             <section className="space-y-2">
               <h3 className="font-semibold">Milestones</h3>
-              <div className="space-y-2">
-                {(scope.milestones ?? []).map((milestone, index) => (
-                  <div key={`${milestone.title}-${index}`} className="flex gap-2">
-                    <span className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                      {milestone.title}
-                    </span>
-                    <Input
-                      type="number"
-                      value={milestone.amount}
-                      onChange={(event) =>
-                        updateMilestone(index, "amount", event.target.value)
-                      }
-                      placeholder="Amount (cents)"
-                    />
-                  </div>
+              <p className="text-xs text-muted-foreground">
+                Prices are auto-calculated (0% / 30% / 40% / 30%) and read-only.
+              </p>
+              <ul className="space-y-1">
+                {buildMilestones(resolvedTotal).map((milestone) => (
+                  <li key={milestone.title} className="flex items-center justify-between rounded-md border bg-muted px-3 py-2">
+                    <span>{milestone.title}</span>
+                    <span className="font-medium">${(milestone.amount / 100).toFixed(2)}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </section>
 
             <section className="space-y-2">
@@ -203,7 +224,18 @@ export function ScopeWidget({
               </section>
             ) : null}
 
-            {scope.technicalArchitecture ? (
+            {(scope.appKinds && scope.appKinds.length > 0) || scope.appKindOther ? (
+              <section>
+                <h3 className="font-semibold">App kind</h3>
+                <p>
+                  {[...(scope.appKinds ?? []), scope.appKindOther ? `Other: ${scope.appKindOther}` : null]
+                    .filter(Boolean)
+                    .join(", ")}
+                </p>
+              </section>
+            ) : null}
+
+            {showArchitecture && scope.technicalArchitecture ? (
               <section>
                 <h3 className="font-semibold">Technical Architecture</h3>
                 <p>{scope.technicalArchitecture}</p>
@@ -248,14 +280,14 @@ export function ScopeWidget({
           </>
         )}
 
-        {role === "CLIENT" && editable ? (
+        {role === "CLIENT" && editable && !isEditing ? (
           <Button className="w-full" onClick={handleApprove}>
-            Approve Blueprint
+            Approve &amp; Publish
           </Button>
-        ) : role === "CLIENT" ? (
-          <p className="text-muted-foreground">Blueprint approved.</p>
+        ) : role === "CLIENT" && editable && isEditing ? null : role === "CLIENT" ? (
+          <p className="text-muted-foreground">Blueprint approved and published.</p>
         ) : (
-          <p className="text-muted-foreground">Waiting for client approval.</p>
+          <p className="text-muted-foreground">Waiting for client approval &amp; publish.</p>
         )}
       </CardContent>
     </Card>

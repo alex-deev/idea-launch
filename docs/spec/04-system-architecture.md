@@ -23,8 +23,9 @@
                                             └─────────────────────┘
 ```
 
-- HTTP exposes health, Auth.js endpoints, registration, project list/detail/create/claim, and payment config/audit/funding/release.
-- **Business mutations** (scoping, offers, demos, milestones, cancel, rating, onboarding) occur over Socket.io.
+- HTTP exposes health, Auth.js endpoints, registration, project list/detail/create, offer listing (as applicable), and payment config/audit/funding/release.
+- **Business mutations** (scoping/publish, offers, selection/negotiation/finalization/acceptance, demos, milestones, cancel, rating, onboarding) occur over Socket.io.
+- **Offers are first-class records** (one active offer per builder per project) decoupled from exclusive claim: multiple builders may offer on a published/open project; builder assignment/commitment is established by offer selection and acceptance.
 - CORS is restricted to `CLIENT_ORIGIN` (default `http://localhost:5173`) with credentials enabled, for both HTTP and Socket.io.
 - A single shared `PrismaClient` lives in `server/src/lib/prisma.ts` (reused across HTTP and socket handlers).
 

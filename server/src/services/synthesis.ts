@@ -1,6 +1,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { z } from "zod";
 
+import {
+  MILESTONE_TITLES,
+  buildMilestones,
+  calculateMilestoneAmounts,
+} from "../lib/milestones.js";
+
 /**
  * Phase 2 Synthesis Agent.
  *
@@ -19,11 +25,13 @@ export const scopeBlueprintSchema = z.object({
     .array(
       z.object({
         title: z.string().min(1),
-        amount: z.number().int().positive(),
+        amount: z.number().int().nonnegative(),
       }),
     )
     .length(4),
   outOfScope: z.array(z.string().min(1)).max(12),
+  appKinds: z.array(z.string().min(1)).optional().default([]),
+  appKindOther: z.string().min(1).optional(),
 });
 
 export type ScopeBlueprint = z.infer<typeof scopeBlueprintSchema>;
@@ -32,7 +40,8 @@ export interface SynthesisInput {
   idea: string;
   budgetCents?: number;
   timeline?: string;
-  preferredStack?: string;
+  appKinds?: string[];
+  appKindOther?: string;
 }
 
 export interface SynthesisResult {
@@ -40,21 +49,17 @@ export interface SynthesisResult {
   source: "gemini" | "fallback";
 }
 
-const MILESTONE_TITLES = [
-  "Agreement",
-  "Initial Demo",
-  "Final Demo",
-  "Deployment",
-] as const;
-
-const DEFAULT_BUDGET_CENTS = 100_000; // $1,000.00, matches the seeded demo project
+const DEFAULT_BUDGET_CENTS = 100_000; // $1,000.00
 
 const SYSTEM_PROMPT = `You are the Idea Launch scoping agent. Convert a client's software idea into a delivery blueprint for a milestone-based escrow marketplace.
 
 Rules:
 - Amounts are integer USD cents. The four milestone amounts MUST sum exactly to the client's stated budget.
 - Use exactly four milestones in this order: Agreement, Initial Demo, Final Demo, Deployment.
-- Keep the architecture to the platform defaults (React, Node.js/Express, PostgreSQL/Prisma, Socket.io) unless the idea clearly requires otherwise.
+- Milestone payout split is business-model auto-calculated: Agreement 0%, Initial Demo 30%, Final Demo 40%, Deployment 30% of the total budget (Agreement has no payout).
+- Consider the client's selected "App kind" (platform target) when shaping the architecture, features, and out-of-scope items (e.g. website, web app, mobile app, desktop app, or other targets). Keep recommendations concrete and appropriate for the stated platform(s).
+- If "Other" app kind details are provided, reflect them.
+- Do not assume a specific tech stack unless implied by the idea/platform; be practical and clear.
 - Be concrete and concise. Do not return markdown or commentary outside the JSON object.`;
 
 const GEMINI_RESPONSE_SCHEMA = {
@@ -82,6 +87,11 @@ const GEMINI_RESPONSE_SCHEMA = {
       type: Type.ARRAY,
       items: { type: Type.STRING },
     },
+    appKinds: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+    },
+    appKindOther: { type: Type.STRING },
   },
   required: [
     "title",
@@ -93,61 +103,78 @@ const GEMINI_RESPONSE_SCHEMA = {
   ],
 };
 
-function sumAmounts(milestones: ScopeBlueprint["milestones"]): number {
-  return milestones.reduce((total, milestone) => total + milestone.amount, 0);
+function normalizeAppKinds(input: SynthesisInput): string[] {
+  return Array.isArray(input.appKinds)
+    ? input.appKinds.filter((v) => typeof v === "string" && v.trim()).map((v) => v.trim())
+    : [];
+}
+
+function normalizeAppKindOther(input: SynthesisInput): string | undefined {
+  const other = typeof input.appKindOther === "string" ? input.appKindOther.trim() : "";
+  return other ? other : undefined;
+}
+
+function describeAppKinds(input: SynthesisInput): string {
+  const kinds = normalizeAppKinds(input);
+  const other = normalizeAppKindOther(input);
+  const parts = [...kinds];
+  if (other) parts.push(`Other: ${other}`);
+  return parts.length ? parts.join(", ") : "Not specified";
 }
 
 /**
- * Gemini is instructed to hit the budget exactly, but structured outputs do not
- * enforce arithmetic. Normalize the result so escrow math never drifts.
+ * Enforce fixed milestone titles/order and the 0/30/40/30 business-model split
+ * so escrow math never drifts from the stated budget. Preserve app kind fields.
  */
-function normalizeBudget(
+function normalizeBlueprint(
   blueprint: ScopeBlueprint,
   budgetCents: number,
+  input: SynthesisInput,
 ): ScopeBlueprint {
-  const milestones = blueprint.milestones.map((milestone, index) => ({
-    title: MILESTONE_TITLES[index] ?? milestone.title,
-    amount: Math.max(1, Math.round(milestone.amount)),
+  const amounts = calculateMilestoneAmounts(budgetCents);
+  const milestones = MILESTONE_TITLES.map((title, index) => ({
+    title,
+    amount: amounts[index],
   }));
-
-  const currentTotal = sumAmounts(milestones);
-  const difference = budgetCents - currentTotal;
-  const last = milestones[milestones.length - 1];
-  last.amount = Math.max(1, last.amount + difference);
-
-  // If clamping the last milestone left a residual, spread it over earlier
-  // stages so the total is exactly the funded budget.
-  const residual = budgetCents - sumAmounts(milestones);
-  if (residual !== 0) {
-    milestones[0].amount = Math.max(1, milestones[0].amount + residual);
-  }
-
-  return { ...blueprint, milestones };
+  const appKinds = normalizeAppKinds(input);
+  const appKindOther = normalizeAppKindOther(input);
+  return {
+    ...blueprint,
+    milestones,
+    appKinds: appKinds.length ? appKinds : (blueprint.appKinds ?? []),
+    ...(appKindOther ? { appKindOther } : blueprint.appKindOther ? { appKindOther: blueprint.appKindOther } : {}),
+  };
 }
 
 export function createFallbackBlueprint(input: SynthesisInput): ScopeBlueprint {
   const budgetCents = input.budgetCents ?? DEFAULT_BUDGET_CENTS;
-  const stageAmount = Math.floor(budgetCents / 4);
-  const remainder = budgetCents - stageAmount * 4;
   const idea = input.idea.trim() || "A new software project";
+  const appKinds = normalizeAppKinds(input);
+  const appKindOther = normalizeAppKindOther(input);
+  const appKindText = describeAppKinds(input);
+
+  const architectureBase =
+    appKinds.length || appKindOther
+      ? `Platform target: ${appKindText}. Architecture and delivery will be tailored to the selected app kind(s).`
+      : "Architecture and delivery will be tailored to the product needs.";
 
   return {
     title: "Project Scope Blueprint",
-    executiveSummary: `A scoped delivery plan for "${idea.slice(0, 140)}", covering architecture, features, and milestone-based delivery.`,
-    technicalArchitecture:
-      input.preferredStack ??
-      "React frontend, Node.js/Express backend, PostgreSQL via Prisma, Socket.io realtime.",
+    executiveSummary: `A scoped delivery plan for "${idea.slice(0, 140)}" (${appKindText}), covering architecture, features, and milestone-based delivery.`,
+    technicalArchitecture: architectureBase,
     coreFeatures: [
-      "AI-assisted scoping",
-      "Milestone-based escrow",
-      "Realtime chat and demos",
-      "Quality scoring",
+      "Clear user experience for the target platform(s)",
+      "Core functionality aligned to the project idea",
+      "Milestone-based delivery and demos",
+      "Quality review and handoff",
     ],
-    milestones: MILESTONE_TITLES.map((title, index) => ({
+    milestones: buildMilestones(budgetCents).map(({ title, amount }) => ({
       title,
-      amount: stageAmount + (index === 0 ? remainder : 0),
+      amount,
     })),
-    outOfScope: ["Native mobile apps", "Third-party billing integrations"],
+    outOfScope: ["Features not described in the agreed scope", "Unrelated platform targets"],
+    appKinds,
+    ...(appKindOther ? { appKindOther } : {}),
   };
 }
 
@@ -161,6 +188,7 @@ export async function synthesizeScope(
 ): Promise<SynthesisResult> {
   const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   const budgetCents = input.budgetCents ?? DEFAULT_BUDGET_CENTS;
+  const appKindText = describeAppKinds(input);
 
   if (!apiKey) {
     console.warn(
@@ -181,7 +209,7 @@ export async function synthesizeScope(
       `Client idea: ${input.idea}`,
       `Budget (cents): ${budgetCents}`,
       input.timeline ? `Timeline: ${input.timeline}` : "",
-      input.preferredStack ? `Preferred stack: ${input.preferredStack}` : "",
+      `App kind (platform targets): ${appKindText}`,
     ]
       .filter(Boolean)
       .join("\n"),
@@ -199,7 +227,7 @@ export async function synthesizeScope(
 
   const parsed = scopeBlueprintSchema.parse(JSON.parse(text));
   return {
-    blueprint: normalizeBudget(parsed, budgetCents),
+    blueprint: normalizeBlueprint(parsed, budgetCents, input),
     source: "gemini",
   };
 }

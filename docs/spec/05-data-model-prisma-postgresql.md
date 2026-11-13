@@ -66,10 +66,12 @@ Constraint: `@@unique([identifier, token])`.
 |---|---|---|
 | `id` | String | `@id @default(cuid())` |
 | `title` | String | |
-| `totalEscrow` | Int | `@default(0)` — cents |
+| `totalEscrow` | Int | `@default(0)` — cents (agreed/funded total; on acceptance reflects accepted final offer) |
 | `status` | ProjectStatus | `@default(SCOPING)` |
 | `clientId` | String | FK → `User.id`, `onDelete: Cascade` |
-| `builderId` | String? | FK → `User.id`, `onDelete: SetNull` |
+| `builderId` | String? | FK → `User.id`, `onDelete: SetNull` — **assigned on acceptance** of the winning offer (not via first-claim) |
+| `selectedOfferId` | String? | FK → `Offer.id` (`onDelete: SetNull`) — offer currently selected for negotiation/decision (null when none) |
+| `acceptedOfferId` | String? | FK → `Offer.id` (`onDelete: SetNull`) — winning accepted/final offer |
 | `deadline` | DateTime? | |
 | `extensionRequested` | Boolean | `@default(false)` |
 | `extensionGranted` | Boolean | `@default(false)` |
@@ -81,6 +83,7 @@ Constraint: `@@unique([identifier, token])`.
 | `latePenaltyTotal` | Int | `@default(0)` — cents |
 | `milestones` | Milestone[] | |
 | `messages` | Message[] | |
+| `offers` | Offer[] | |
 | `createdAt` / `updatedAt` | DateTime | `now()` / `@updatedAt` |
 
 ### 5.6 `Milestone`
@@ -92,15 +95,40 @@ Constraint: `@@unique([identifier, token])`.
 | `stageNumber` | Int | 1–4 |
 | `title` | String | |
 | `amount` | Int | cents |
-| `releasePercent` | Int | `@default(0)` |
+| `releasePercent` | Int | `@default(0)` — payout share metadata (0/30/40/30); milestone `amount` is the releasable cents (Agreement 0, others 30/40/30 of total) |
 | `status` | MilestoneStatus | `@default(PLANNED)` |
-| `dueDate` | DateTime? | |
+| `dueDate` | DateTime? | negotiable in offer terms pre-accept; applied to project milestones on acceptance |
 | `releasedAt` | DateTime? | |
 | `latePenalty` | Int | `@default(0)` — cents |
-| `demoUrl` | String? | |
+| `demoUrl` | String? | current demo link for the milestone (latest submission) |
+| `revisionRequestedAt` | DateTime? | when client requested demo changes (soft 24h revision target source; reset on each rejection) |
+| `revisionReason` | String? | client’s required reason for requesting changes on the current demo |
+| `currentDemoMessageId` | String? | reference to the current actionable `DEMO_WIDGET` submission message for this milestone |
 | `createdAt` / `updatedAt` | DateTime | `now()` / `@updatedAt` |
 
-### 5.7 `Message`
+> **Demo review (Direction A, lightweight):** applies to **Initial Demo** and **Final Demo** milestones only. A rejection sets `CHANGES_REQUESTED` with `revisionRequestedAt`/`revisionReason` and targets the current submission; each new rejection resets the soft 24h target. Builder resubmission creates a new `DEMO_WIDGET` for the same milestone, updates `currentDemoMessageId`/`demoUrl`, and clears/advances review state per flow (late resubmission allowed and flagged). Only the current, non-rejected submission may be approved/released. Final persisted field/enum details may be refined during implementation but must preserve these semantics.
+
+### 5.7 `Offer` (first-class)
+
+| Field | Type | Attributes |
+|---|---|---|
+| `id` | String | `@id @default(cuid())` |
+| `projectId` | String | FK → `Project.id`, `onDelete: Cascade` |
+| `builderId` | String | FK → `User.id`, `onDelete: Cascade` |
+| `status` | OfferStatus | `@default(SUBMITTED)` |
+| `totalCents` | Int | proposed/agreed total (cents); per-milestone amounts are auto-derived 0/30/40/30 and read-only |
+| `milestonesSnapshot` | Json | calculated milestone terms (titles, amounts, releasePercent, proposed `dueDate`s) for comparison/negotiation |
+| `longTermAmountCents` | Int? | informational (MVP, not escrowed) |
+| `longTermCadence` | LongTermCadence | `@default(NONE)` |
+| `longTermNotes` | String? | informational terms/notes |
+| `submittedAt` | DateTime | `@default(now())` |
+| `updatedAt` | DateTime | `@updatedAt` |
+| `finalizedAt` | DateTime? | set when marked `FINAL` |
+| `withdrawnAt` | DateTime? | |
+
+**Constraints/invariants:** `@@unique([projectId, builderId])` (one active offer per builder per project). Terms of record on acceptance are applied to `Project.totalEscrow` and project `Milestone`s.
+
+### 5.8 `Message`
 
 | Field | Type | Attributes |
 |---|---|---|
@@ -109,10 +137,10 @@ Constraint: `@@unique([identifier, token])`.
 | `senderId` | String? | FK → `User.id`, `onDelete: SetNull` |
 | `type` | MessageType | `@default(TEXT)` |
 | `content` | String | |
-| `payload` | Json? | widget-specific data |
+| `payload` | Json? | widget/system data (offer widgets may be derived from or linked to `Offer` for compatibility) |
 | `createdAt` | DateTime | `@default(now())` |
 
-### 5.8 Enums
+### 5.9 Enums
 
 ```prisma
 enum ProjectStatus {
@@ -123,9 +151,28 @@ enum ProjectStatus {
   CANCELLED
 }
 
+enum OfferStatus {
+  SUBMITTED
+  SELECTED
+  BLOCKED
+  FINAL
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum LongTermCadence {
+  NONE
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  ONE_TIME
+}
+
 enum MilestoneStatus {
   PLANNED
   IN_PROGRESS
+  CHANGES_REQUESTED
   RELEASED
   COMPLETED
   BLOCKED
@@ -151,10 +198,10 @@ Deletes in dependency order: messages → milestones → projects → sessions �
 
 | id | Stage | Title | Amount | releasePercent | Status |
 |---|---|---|---|---|---|
-| `milestone-1` | 1 | Agreement | 25000 | 0 | PLANNED |
-| `milestone-2` | 2 | Initial Demo | 25000 | 30 | PLANNED |
-| `milestone-3` | 3 | Final Demo | 25000 | 40 | PLANNED |
-| `milestone-4` | 4 | Deployment | 25000 | 30 | PLANNED |
+| `milestone-1` | 1 | Agreement | 0 | 0 | PLANNED |
+| `milestone-2` | 2 | Initial Demo | 30000 | 30 | PLANNED |
+| `milestone-3` | 3 | Final Demo | 40000 | 40 | PLANNED |
+| `milestone-4` | 4 | Deployment | 30000 | 30 | PLANNED |
 
 > **Migrations exist** under `server/prisma/migrations/` (`20261109000000_init`, `20261109010000_add_payments`, `20261109020000_add_user_password`). Apply with `npm run db:migrate` (dev) or `npm run prisma:deploy -w server` (prod) before seeding.
 
