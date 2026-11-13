@@ -329,7 +329,7 @@ export function ProjectWorkspace({
         <aside
           id={PLANS_PANEL_ID}
           aria-label="Project plans"
-          className="flex h-full w-80 shrink-0 flex-col gap-3 overflow-y-auto"
+          className="flex h-full w-80 shrink-0 flex-col gap-3 overflow-y-auto p-1"
         >
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">Project Plans</h2>
@@ -354,8 +354,8 @@ export function ProjectWorkspace({
           </div>
 
           {role === "CLIENT" && isCreateFormOpen ? (
-            <Card>
-              <CardContent className="space-y-2 p-3 pb-4">
+            <Card className="shrink-0">
+              <CardContent className="space-y-1 px-2">
                 <label className="flex flex-col gap-1 text-sm font-medium" htmlFor="new-project-title">
                   Project name
                 </label>
