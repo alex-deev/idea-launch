@@ -95,7 +95,7 @@ Constraint: `@@unique([identifier, token])`.
 | `stageNumber` | Int | 1–4 |
 | `title` | String | |
 | `amount` | Int | cents |
-| `releasePercent` | Int | `@default(0)` — payout share metadata (0/30/40/30); milestone `amount` is the releasable cents (Agreement 0, others 30/40/30 of total) |
+| `releasePercent` | Int | `@default(0)` — payout share metadata (30/40/30); milestone `amount` is the releasable cents (Initial 30%, Final 40%, Deployment 30% of total) |
 | `status` | MilestoneStatus | `@default(PLANNED)` |
 | `dueDate` | DateTime? | negotiable in offer terms pre-accept; applied to project milestones on acceptance |
 | `releasedAt` | DateTime? | |
@@ -116,7 +116,7 @@ Constraint: `@@unique([identifier, token])`.
 | `projectId` | String | FK → `Project.id`, `onDelete: Cascade` |
 | `builderId` | String | FK → `User.id`, `onDelete: Cascade` |
 | `status` | OfferStatus | `@default(SUBMITTED)` |
-| `totalCents` | Int | proposed/agreed total (cents); per-milestone amounts are auto-derived 0/30/40/30 and read-only |
+| `totalCents` | Int | proposed/agreed total (cents); per-milestone amounts are auto-derived 30/40/30 and read-only |
 | `milestonesSnapshot` | Json | calculated milestone terms (titles, amounts, releasePercent, proposed `dueDate`s) for comparison/negotiation |
 | `longTermAmountCents` | Int? | informational (MVP, not escrowed) |
 | `longTermCadence` | LongTermCadence | `@default(NONE)` |
@@ -198,10 +198,10 @@ Deletes in dependency order: messages → milestones → projects → sessions �
 
 | id | Stage | Title | Amount | releasePercent | Status |
 |---|---|---|---|---|---|
-| `milestone-1` | 1 | Agreement | 0 | 0 | PLANNED |
-| `milestone-2` | 2 | Initial Demo | 30000 | 30 | PLANNED |
-| `milestone-3` | 3 | Final Demo | 40000 | 40 | PLANNED |
-| `milestone-4` | 4 | Deployment | 30000 | 30 | PLANNED |
+| `milestone-1` | 1 | Initial Demo | 30000 | 30 | PLANNED |
+| `milestone-2` | 2 | Final Demo | 40000 | 40 | PLANNED |
+| `milestone-3` | 3 | Deployment | 30000 | 30 | PLANNED |
+
 
 > **Migrations exist** under `server/prisma/migrations/` (`20261109000000_init`, `20261109010000_add_payments`, `20261109020000_add_user_password`). Apply with `npm run db:migrate` (dev) or `npm run prisma:deploy -w server` (prod) before seeding.
 

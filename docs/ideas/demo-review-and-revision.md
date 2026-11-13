@@ -40,7 +40,7 @@ This fits the current stack/patterns (Socket.io events + acks, `DEMO_WIDGET` mes
 - **Reject/review for every project artifact/state** — scoped to **demo submissions for demo milestones** to solve the stated problem without broad workflow redesign.
 
 ## Resolved Defaults (for planning)
-- **Demo milestone scope:** **Initial Demo** and **Final Demo** only (stages 2–3). Agreement and Deployment are out of scope for this reject/revision flow in MVP.
+- **Demo milestone scope (reject/revision):** **Initial Demo** and **Final Demo** only. Deployment is out of scope for this reject/revision flow in MVP. (Agreement is not a milestone; acceptance of the final offer is the agreement.)
 - **24h window:** **Soft target that resets on each rejection**, counted from rejection time. Builder may resubmit late; lateness is **visible/flagged** (no hard block/escalation).
 - **State representation:** persist lightweight review state on the **Milestone** for reliable rejoin/guards (e.g. review status/`CHANGES_REQUESTED`, `revisionRequestedAt`, `revisionReason`, and reference to the current demo submission/message) plus demo-submission context in `DEMO_WIDGET` payloads as needed. Add a client-only **`reject_demo`** socket event (milestone-scoped, **reason required**) with server-enforced transitions; **approve only** the current, non-rejected submission.
 - **Current submission/history:** each resubmission creates a new `DEMO_WIDGET` for the same milestone; only the **latest/current** submission is actionable, older submissions render as historical/superseded. **Resubmit targets the changes-requested milestone** (not the next stage).

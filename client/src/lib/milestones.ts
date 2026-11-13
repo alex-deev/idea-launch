@@ -1,11 +1,10 @@
 export const MILESTONE_TITLES = [
-  "Agreement",
   "Initial Demo",
   "Final Demo",
   "Deployment",
 ] as const;
 
-export const MILESTONE_RELEASE_PERCENTS = [0, 30, 40, 30] as const;
+export const MILESTONE_RELEASE_PERCENTS = [30, 40, 30] as const;
 
 export interface MilestoneAmount {
   title: string;
@@ -14,16 +13,16 @@ export interface MilestoneAmount {
 }
 
 /**
- * Business-model auto-calc: 0% / 30% / 40% / 30% of total escrow (integer cents).
- * Agreement carries no payout; stages 2-4 carry the releasable funds.
- * Remainder cents are applied to Deployment so the four amounts always sum to total.
+ * Business-model auto-calc: 30% / 40% / 30% of total escrow (integer cents).
+ * All milestones are releasable/payable. Agreement is implicit at offer acceptance
+ * (not a milestone). Remainder cents are applied to Deployment so amounts sum to total.
  */
 export function calculateMilestoneAmounts(totalCents: number): number[] {
   const total = Number.isFinite(totalCents) ? Math.max(0, Math.round(totalCents)) : 0;
   const initialDemo = Math.round((total * 30) / 100);
   const finalDemo = Math.round((total * 40) / 100);
   const deployment = total - initialDemo - finalDemo;
-  return [0, initialDemo, finalDemo, deployment];
+  return [initialDemo, finalDemo, deployment];
 }
 
 export function buildMilestones(totalCents: number): MilestoneAmount[] {
@@ -37,15 +36,10 @@ export function buildMilestones(totalCents: number): MilestoneAmount[] {
 
 export function normalizeMilestones(
   totalCents: number,
-  milestones?: { title?: string; amount?: number; releasePercent?: number }[] | null,
+  _milestones?: { title?: string; amount?: number; releasePercent?: number }[] | null,
 ): MilestoneAmount[] {
-  const calculated = buildMilestones(totalCents);
-  if (!milestones?.length) return calculated;
-  return calculated.map((milestone, index) => ({
-    ...milestone,
-    // Titles are fixed to the four stages; amounts are always recalculated.
-    title: MILESTONE_TITLES[index] ?? milestones[index]?.title ?? milestone.title,
-  }));
+  // Titles/order/split are fixed (3 stages); amounts always recalculated from total.
+  return buildMilestones(totalCents);
 }
 
 export function sumMilestoneAmounts(

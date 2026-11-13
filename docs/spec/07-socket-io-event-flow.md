@@ -6,7 +6,7 @@
 |---|---|---|---|---|---|
 | `join_project` | C→S | `{ projectId, userId? }` | — | Joins room; loads project (+ milestones, offers/selection as applicable); replays history | `project_updated`, `message_history`, `offers_updated` (to caller/room as applicable) |
 | `send_message` | C→S | `{ projectId, content, senderId?, type?, payload? }` | `{ ok, message }` | Inserts `Message`; scope trigger special-case. **Pre-funding composer allowed only for client + selected builder during offer negotiation; always allowed when `ACTIVE` (and subject to role/room rules).** | `new_message` (room) |
-| `approve_scope` | C→S | `{ projectId, userId?, payload?, messageId? }` | `{ ok, project }` (or `{ ok: false, error, code, openBidsCount, openBidsLimit }`) | **Approve & Publish:** server normalizes scope/milestones/total (0/30/40/30), persists blueprint, enforces client **open-for-bids limit** (max 3 `OPEN_FOR_BIDS`), then sets `OPEN_FOR_BIDS` (open for offers) | `message_updated` (scope), `project_updated`, `new_message` |
+| `approve_scope` | C→S | `{ projectId, userId?, payload?, messageId? }` | `{ ok, project }` (or `{ ok: false, error, code, openBidsCount, openBidsLimit }`) | **Approve & Publish:** server normalizes scope/milestones/total (30/40/30, 3 milestones), persists blueprint, enforces client **open-for-bids limit** (max 3 `OPEN_FOR_BIDS`), then sets `OPEN_FOR_BIDS` (open for offers) | `message_updated` (scope), `project_updated`, `new_message` |
 | `submit_offer` | C→S | `{ projectId, builderId, totalCents, longTermAmountCents?, longTermCadence?, longTermNotes?, milestoneDueDates? }` | `{ ok, offer }` | Creates builder’s **single** `SUBMITTED` offer (auto-calc milestones snapshot). Rejected if builder already has **3 accepted/active (`ACTIVE`) projects**. | `offers_updated`, `new_message` (offer widget/system) |
 | `revise_offer` | C→S | `{ offerId|projectId, builderId, ...terms }` | `{ ok, offer }` | Updates terms on builder’s offer when allowed (`SUBMITTED`; or post-cancel reverted state per rules) | `offers_updated`, `new_message` |
 | `withdraw_offer` | C→S | `{ offerId|projectId, builderId }` | `{ ok, offer }` | Sets offer `WITHDRAWN` (final for project in MVP) when allowed | `offers_updated`, `new_message` |
@@ -17,7 +17,7 @@
 | `accept_offer` | C→S | `{ projectId, offerId, clientId }` | `{ ok, project, payment, clientSecret, offer }` | Accepts **final** offer: applies agreed terms/due dates to project+milestones, assigns builder, rejects other offers, funds escrow | `offers_updated`, `project_updated`, `new_message` |
 | `submit_demo` | C→S | `{ projectId, milestoneId, demoUrl?, senderId?, payload? }` | `{ ok, message, latePenalty, overdueRevision? }` | Submits/resubmits demo for a milestone (Initial/Final Demo review scope). Applies due-date late penalty as today; sets `demoUrl` and review/pending state, records current demo submission, inserts `DEMO_WIDGET`. For **changes-requested** resubmissions targets the same milestone; soft 24h revision window is non-blocking but resubmission after target is flagged (audit/state). | `new_message`, `milestone_updated`, `project_updated` (as applicable) |
 | `reject_demo` | C→S | `{ projectId, milestoneId, reason, userId? }` | `{ ok, milestone }` | Client-only (project owner) for **Initial/Final Demo** current submissions. Requires reason; sets `CHANGES_REQUESTED` with `revisionRequestedAt` (resets per rejection) and `revisionReason`; does **not** release funds. Emits audit `SYSTEM` message. | `new_message`, `milestone_updated`, `project_updated` |
-| `approve_milestone` | C→S | `{ milestoneId, userId? }` | `{ ok, milestone }` | Client-only; approves/releases the **current, non-rejected** reviewable demo submission. Releases via escrow: $0 Agreement releases without transfer; positive milestones transfer funds. Sets `RELEASED` + `releasedAt`; may complete project. Guarded to reject approval when changes are requested or submission is not current. | `milestone_updated`, possibly `project_updated` |
+| `approve_milestone` | C→S | `{ milestoneId, userId? }` | `{ ok, milestone }` | Client-only; approves/releases the **current, non-rejected** reviewable demo submission. Releases via escrow (milestones transfer funds; 30/40/30). Sets `RELEASED` + `releasedAt`; may complete project when all 3 milestones released. Guarded to reject approval when changes are requested or submission is not current. | `milestone_updated`, possibly `project_updated` |
 | `cancel_project` | C→S | `{ projectId, userId? }` | `{ ok, project, refundPercent, refundAmount }` | Computes refund tier; sets `CANCELLED`, refund fields; inserts `SYSTEM` message | `project_updated`, `new_message` |
 | `request_extension` | C→S | `{ projectId, userId? }` | `{ ok, project }` | Adds 48h to deadline (or now); sets `extensionRequested` (post-acceptance/`ACTIVE` flow) | `project_updated` |
 | `submit_rating` | C→S | `{ projectId, rating 1–5, feedback?, userId? }` | `{ ok, project }` | Validates completed/cancelled; stores score/feedback | `project_updated`, `new_message` |
@@ -94,7 +94,7 @@ sequenceDiagram
         S-->>UI: project_updated, offers_updated
     end
 
-    Note over S,DB: Post-acceptance: demos, milestone approvals (0/30/40/30), completion
+    Note over S,DB: Post-acceptance: demos, milestone approvals (30/40/30), completion
 ```
 
 ### 7.4 Handler Details
@@ -108,12 +108,12 @@ sequenceDiagram
 - **Composer gating (server-enforced):** freeform `TEXT` messages allowed when project is `ACTIVE`, or when sender is the **client or selected builder** during an active negotiation/selection/final-decision window pre-funding; otherwise rejected (prevents premature/unscoped chat). System/widget emissions follow their specific handlers.
 
 #### `approve_scope` (Approve & Publish)
-- Requires `projectId`. Normalizes scope payload and project milestones/total to fixed 4 stages (0/30/40/30), persists blueprint/total.
+- Requires `projectId`. Normalizes scope payload and project milestones/total to fixed 3 milestones (Initial Demo, Final Demo, Deployment at 30/40/30), persists blueprint/total. Agreement is implicit at final-offer acceptance (not a milestone).
 - Enforces client **open-for-bids limit**: if the client already has **≥ 3** projects in `OPEN_FOR_BIDS` (including negotiating/selected pre-funding), publish is rejected with a clear error/count (`CLIENT_OPEN_BIDS_LIMIT_REACHED`) and no state change. `SCOPING` drafts are not limited; slots free on `ACTIVE`/`CANCELLED`.
 - On success sets `OPEN_FOR_BIDS` (published/open for offers), emits `message_updated` (if applicable), `project_updated`, and `SYSTEM` message.
 
 #### `submit_offer`
-- Builder-only for an `OPEN_FOR_BIDS` project. Enforces **one active offer per builder** (`@@unique(projectId,builderId)` / equivalent) and the **accepted-active project limit**: builders with **3 `ACTIVE` projects** (`builderId` assigned, offers accepted) cannot submit offers on new project plans. Computes milestones snapshot from `totalCents` (0/30/40/30, read-only), stores long-term cost terms (informational) and proposed milestone due dates. Creates `SUBMITTED` offer; emits `offers_updated` (and offer widget/system message for compatibility).
+- Builder-only for an `OPEN_FOR_BIDS` project. Enforces **one active offer per builder** (`@@unique(projectId,builderId)` / equivalent) and the **accepted-active project limit**: builders with **3 `ACTIVE` projects** (`builderId` assigned, offers accepted) cannot submit offers on new project plans. Computes milestones snapshot from `totalCents` (30/40/30, 3 milestones, read-only), stores long-term cost terms (informational) and proposed milestone due dates. Creates `SUBMITTED` offer; emits `offers_updated` (and offer widget/system message for compatibility).
 
 #### `revise_offer`
 - Builder-only, own offer. Allowed while offer is `SUBMITTED` (not selected/blocked/terminal), including after negotiation canceled and reverted to `SUBMITTED`. Updates terms (total→recalc, long-term costs, due dates) and emits `offers_updated`.
@@ -135,13 +135,13 @@ sequenceDiagram
 
 #### `accept_offer`
 - Client-only. Requires specified offer to be `FINAL` (and selected) for the project.
-- Applies agreed terms: set `project.totalEscrow`, sync project milestones (amounts 0/30/40/30, titles/order) and apply negotiated `dueDate`s; assign `project.builderId` from offer.
+- Applies agreed terms: set `project.totalEscrow`, sync project milestones (3 milestones: Initial/Final/Deployment, amounts 30/40/30, titles/order) and apply negotiated `dueDate`s; assign `project.builderId` from offer.
 - Marks offer `ACCEPTED`, sets `project.acceptedOfferId`, marks other offers `REJECTED`.
 - Calls `fundEscrow` (mock activates; real Stripe may return pending intent/client secret). Enforces probationary cap server-side.
 - Emits `offers_updated`, `project_updated`, `SYSTEM`/message as applicable. Ack includes `{ project, offer, payment, clientSecret }`.
 
 #### `submit_demo`
-- Requires `projectId` and `milestoneId`. Applies existing due-date late penalty: `dueDate && now > dueDate ? round(amount * 0.05) : 0` (Agreement amount 0 → no penalty).
+- Requires `projectId` and `milestoneId`. Applies existing due-date late penalty: `dueDate && now > dueDate ? round(amount * 0.05) : 0`.
 - Creates a new `DEMO_WIDGET` submission for the milestone and records it as the **current** demo (`demoUrl`/current submission ref). Sets pending/reviewable state (e.g. `IN_PROGRESS`) for a normal submission.
 - **Resubmission (changes requested):** when the milestone is in `CHANGES_REQUESTED` (demo review scope: **Initial/Final Demo**), submission targets the **same milestone**, creates a new current `DEMO_WIDGET`, and transitions state back to reviewable; the **soft 24h revision window** (`revisionRequestedAt + 24h`, reset per rejection) does **not** block submission, but resubmission after the target is flagged as overdue in state/audit (and may be surfaced in ack/payload).
 - Emits `new_message`, `milestone_updated` (and `project_updated` as applicable). Server must validate builder/ownership/eligibility per project rules.
@@ -153,7 +153,7 @@ sequenceDiagram
 
 #### `approve_milestone`
 - Requires `milestoneId`. **Client-only** (project owner). Approves/releases only the **current, non-rejected** reviewable demo submission; must reject if milestone is `CHANGES_REQUESTED` or submission is not current/actionable.
-- Releases via escrow: amount 0 (Agreement) marked `RELEASED` without transfer; positive amounts transfer (mock auto-pay, real Stripe may stay pending). Clears/settles review state as appropriate, sets `RELEASED` + `releasedAt`; completes project when all milestones released/completed. Emits `milestone_updated` (+ `project_updated` on completion).
+- Releases via escrow: milestone amounts transfer (mock auto-pay, real Stripe may stay pending). Clears/settles review state as appropriate, sets `RELEASED` + `releasedAt`; completes project when all 3 milestones released/completed. Emits `milestone_updated` (+ `project_updated` on completion).
 
 #### `submit_onboarding`
 - Requires `userId`. Updates builder profile fields; sets `probationary: false`; no GitHub/portfolio verification.

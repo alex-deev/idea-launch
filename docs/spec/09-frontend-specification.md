@@ -1,7 +1,9 @@
 ## 9. Frontend Specification
 
 ### 9.1 `App.tsx`
-- Routes: `/` (sign-in), `/signup`, `/client`, `/builder`. Protected routes redirect to sign-in when no session.
+- Routes: `/` (public landing), `/signin`, `/signup`, `/workspace` (authenticated, role-aware app), with legacy `/client` and `/builder` redirecting to `/workspace` and `*` redirecting to `/`.
+- `/` shows a minimal placeholder landing with CTAs to `/signin` and `/signup`; when signed in it also shows a quick action to go to `/workspace`.
+- `/signin` and `/signup` redirect authenticated users to `/workspace`. `/workspace` redirects unauthenticated users to `/signin` and renders the client or builder experience based on the signed-in user’s role.
 - Auth via `AuthContext` (Auth.js session lookup at `/auth/session`); sign-in uses `/auth/callback/credentials`; registration uses `POST /api/auth/register`.
 - Role comes from the user record; the sign-in "Workspace" selector is cosmetic.
 - Theme toggle (light/dark) persisted to `localStorage`; applies `.dark` class.
@@ -22,7 +24,7 @@
 - Replays message history and current offer/selection state on join.
 - **Project header counterparty:** for clients, shows the builder name only after the client selects and/or accepts that builder’s offer (no placeholder before then); for builders, always shows the client/project-owner name (no placeholder fallback).
 - **Composer gating:** hidden during `SCOPING` (intake shown). Pre-funding, the **text composer is enabled only for the client and the selected builder** while an offer is selected/in negotiation/`FINAL` (existing project room, no new thread). When no offer is selected or for other builders, no freeform composer. Composer is available in `ACTIVE` for delivery collaboration.
-- **Builder offers (pre-accept, published projects):** builders can review the plan (including builder-visible Technical Architecture), submit a **single initial offer** and, when allowed, **revise/withdraw**; term inputs include proposed **total** (milestones auto-calculated 0/30/40/30, read-only), long-term costs (informational), and demo/deployment due dates. Builders at the **3 accepted/`ACTIVE` projects** limit cannot submit new offers and see an explanatory message instead of the submit form.
+- **Builder offers (pre-accept, published projects):** builders can review the plan (including builder-visible Technical Architecture), submit a **single initial offer** and, when allowed, **revise/withdraw**; term inputs include proposed **total** (milestones auto-calculated 30/40/30 over 3 milestones, read-only), long-term costs (informational), and milestone due dates. Builders at the **3 accepted/`ACTIVE` projects** limit cannot submit new offers and see an explanatory message instead of the submit form.
 - **Client offer management:** client views/compares offers, **selects one** (others blocked), can **cancel negotiation** (reopen choice, selected reverts to `SUBMITTED` retaining terms), and after builder marks **Final offer** can **accept & fund** or cancel negotiation.
 - **Negotiation term sheet (V4-lite):** structured edits for total→recalc, long-term costs, and milestone due dates; builder marks **Final offer**. Terms of record apply on acceptance.
 - **Demo review (Initial/Final Demo, Direction A):** each submission creates a `DEMO_WIDGET` for the same milestone; only the **current** submission is actionable. Client can **Approve** or **Reject** (reason required) the current demo; rejection sets a **soft 24h** revision target (reset per rejection, shown as “due in…” / “overdue by…” but non-blocking) and records feedback. Builder resubmits the **same changes-requested milestone** (not the next stage); late resubmissions are allowed and flagged. Historical/superseded demo widgets render non-actionable. “Submit Next Demo” and nearby deadline text are milestone/review-aware (including revision target/overdue when applicable).
@@ -32,7 +34,7 @@
 ### 9.4 `ScopeIntakeForm.tsx` / `ScopeWidget.tsx`
 - Intake form collects idea/budget/timeline/app kind and triggers synthesis.
 - `ScopeWidget` renders the blueprint (summary, app kind, features, milestones, out-of-scope). **Technical Architecture is hidden from clients** (UI-only) and visible to builders.
-- Scope content is editable by the client only before approval; milestone titles/order are fixed and **milestone prices are auto-calculated (Agreement 0%, Initial Demo 30%, Final Demo 40%, Deployment 30% of total) and read-only**.
+- Scope content is editable by the client only before approval; milestone titles/order are fixed and **milestone prices are auto-calculated (Initial Demo 30%, Final Demo 40%, Deployment 30% of total, 3 milestones) and read-only**. Agreement is implicit at final-offer acceptance (not a milestone).
 - While editing, the **Approve** action is hidden; client saves/cancels edits, then approves. Client action **“Approve & Publish”** emits `approve_scope` (server enforces normalized milestones/total and the client **open-for-bids limit**) and moves the project to `OPEN_FOR_BIDS` (open for builder offers).
 - **Client open-for-bids quota (guided):** shows **“Open for bids: X/3”** during publish; nudges at **2/3** (“1 slot left”); at **3/3** disables publish and shows actionable guidance to free a slot (accept/fund → `ACTIVE`, or cancel → `CANCELLED`) and lists open projects occupying slots. Server rejection is surfaced if encountered. `SCOPING` drafts remain unlimited.
 

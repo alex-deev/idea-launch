@@ -8,10 +8,9 @@ function snapshot(totalCents: number) {
   const finalDemo = Math.round((totalCents * 40) / 100);
   const deployment = totalCents - initial - finalDemo;
   const rows = [
-    { stageNumber: 1, title: "Agreement", amount: 0, releasePercent: 0 },
-    { stageNumber: 2, title: "Initial Demo", amount: initial, releasePercent: 30 },
-    { stageNumber: 3, title: "Final Demo", amount: finalDemo, releasePercent: 40 },
-    { stageNumber: 4, title: "Deployment", amount: deployment, releasePercent: 30 },
+    { stageNumber: 1, title: "Initial Demo", amount: initial, releasePercent: 30 },
+    { stageNumber: 2, title: "Final Demo", amount: finalDemo, releasePercent: 40 },
+    { stageNumber: 3, title: "Deployment", amount: deployment, releasePercent: 30 },
   ];
   return rows.map((r) => ({ ...r, dueDate: null as string | null }));
 }
@@ -68,10 +67,9 @@ async function main() {
       clientId: clientUser.id,
       milestones: {
         create: [
-          { id: "milestone-1", stageNumber: 1, title: "Agreement", amount: 0, releasePercent: 0, status: "PLANNED" },
-          { id: "milestone-2", stageNumber: 2, title: "Initial Demo", amount: 30000, releasePercent: 30, status: "PLANNED" },
-          { id: "milestone-3", stageNumber: 3, title: "Final Demo", amount: 40000, releasePercent: 40, status: "PLANNED" },
-          { id: "milestone-4", stageNumber: 4, title: "Deployment", amount: 30000, releasePercent: 30, status: "PLANNED" },
+          { id: "milestone-1", stageNumber: 1, title: "Initial Demo", amount: 30000, releasePercent: 30, status: "PLANNED" },
+          { id: "milestone-2", stageNumber: 2, title: "Final Demo", amount: 40000, releasePercent: 40, status: "PLANNED" },
+          { id: "milestone-3", stageNumber: 3, title: "Deployment", amount: 30000, releasePercent: 30, status: "PLANNED" },
         ],
       },
     },
@@ -88,10 +86,9 @@ async function main() {
       clientId: clientUser.id,
       milestones: {
         create: [
-          { id: "milestone-5", stageNumber: 1, title: "Agreement", amount: 0, releasePercent: 0, status: "PLANNED" },
-          { id: "milestone-6", stageNumber: 2, title: "Initial Demo", amount: 45000, releasePercent: 30, status: "PLANNED" },
-          { id: "milestone-7", stageNumber: 3, title: "Final Demo", amount: 60000, releasePercent: 40, status: "PLANNED" },
-          { id: "milestone-8", stageNumber: 4, title: "Deployment", amount: 45000, releasePercent: 30, status: "PLANNED" },
+          { id: "milestone-5", stageNumber: 1, title: "Initial Demo", amount: 45000, releasePercent: 30, status: "PLANNED" },
+          { id: "milestone-6", stageNumber: 2, title: "Final Demo", amount: 60000, releasePercent: 40, status: "PLANNED" },
+          { id: "milestone-7", stageNumber: 3, title: "Deployment", amount: 45000, releasePercent: 30, status: "PLANNED" },
         ],
       },
     },
@@ -134,10 +131,9 @@ async function main() {
       builderId: builderUser.id,
       milestones: {
         create: [
-          { id: "milestone-9", stageNumber: 1, title: "Agreement", amount: 0, releasePercent: 0, status: "RELEASED", releasedAt: new Date() },
-          { id: "milestone-10", stageNumber: 2, title: "Initial Demo", amount: 24000, releasePercent: 30, status: "IN_PROGRESS" },
-          { id: "milestone-11", stageNumber: 3, title: "Final Demo", amount: 32000, releasePercent: 40, status: "PLANNED" },
-          { id: "milestone-12", stageNumber: 4, title: "Deployment", amount: 24000, releasePercent: 30, status: "PLANNED" },
+          { id: "milestone-9", stageNumber: 1, title: "Initial Demo", amount: 24000, releasePercent: 30, status: "IN_PROGRESS" },
+          { id: "milestone-10", stageNumber: 2, title: "Final Demo", amount: 32000, releasePercent: 40, status: "PLANNED" },
+          { id: "milestone-11", stageNumber: 3, title: "Deployment", amount: 24000, releasePercent: 30, status: "PLANNED" },
         ],
       },
     },
@@ -172,10 +168,9 @@ async function main() {
       clientId: clientUser.id,
       milestones: {
         create: [
-          { id: "milestone-13", stageNumber: 1, title: "Agreement", amount: 0, releasePercent: 0, status: "PLANNED" },
-          { id: "milestone-14", stageNumber: 2, title: "Initial Demo", amount: 18000, releasePercent: 30, status: "PLANNED" },
-          { id: "milestone-15", stageNumber: 3, title: "Final Demo", amount: 24000, releasePercent: 40, status: "PLANNED" },
-          { id: "milestone-16", stageNumber: 4, title: "Deployment", amount: 18000, releasePercent: 30, status: "PLANNED" },
+          { id: "milestone-13", stageNumber: 1, title: "Initial Demo", amount: 18000, releasePercent: 30, status: "PLANNED" },
+          { id: "milestone-14", stageNumber: 2, title: "Final Demo", amount: 24000, releasePercent: 40, status: "PLANNED" },
+          { id: "milestone-15", stageNumber: 3, title: "Deployment", amount: 18000, releasePercent: 30, status: "PLANNED" },
         ],
       },
     },

@@ -7,7 +7,7 @@
 **Direction A — Focused MVP (collapsible bar + builder-owned terms + event notifications).**
 
 - **Collapsible, negotiation-scoped panel (clutter reduction):** Show an **Offer & Terms** panel **above the composer only during `OPEN_FOR_BIDS`/negotiation**. Render it as a slim, collapsible summary bar (e.g. status/participants/context at a glance) that is **default collapsed** and expands on demand to reveal the full term sheet and actions. This keeps chat first while preserving quick access to terms. (Resonates with variations 2, 7.)
-- **Builder-only term authorship (clarity/ownership):** **Only the builder** can create or modify term values — **submit, revise, and update terms** (total → auto-calculated 0/30/40/30 milestones, long-term costs, milestone due dates) and **mark final**. The **client cannot modify term values**; the client retains **select offer, cancel negotiation, and accept final offer**. Client term-edit controls are removed from the UI and term-edit actions from the client are rejected server-side; clients request changes via chat. (Resonates with variation 5; primary success here is audit/clarity of who changes terms.)
+- **Builder-only term authorship (clarity/ownership):** **Only the builder** can create or modify term values — **submit, revise, and update terms** (total → auto-calculated 30/40/30 milestones (3 stages), long-term costs, milestone due dates) and **mark final**. The **client cannot modify term values**; the client retains **select offer, cancel negotiation, and accept final offer**. Client term-edit controls are removed from the UI and term-edit actions from the client are rejected server-side; clients request changes via chat. (Resonates with variation 5; primary success here is audit/clarity of who changes terms.)
 - **Specific, simple, number-free audit notifications (audit trail):** Emit a **centered green chat (`SYSTEM`) notification** for each meaningful offer event. Legends are **descriptive but simple, with no numbers** (no amounts/dates). Proposed catalog:
   - `submit_offer` → **“Offer submitted”**
   - `revise_offer` → **“Offer revised”**
@@ -39,7 +39,7 @@
 - Auto-expand/state-aware heuristics or remembered expand/collapse state (Direction B).
 - Notification batching, de-duplication, or granular-vs-high-signal filtering (Direction C, later if noisy).
 - Amounts/dates/diffs in notification text; in-panel change history/timeline.
-- Changes to pricing rules (0/30/40/30), escrow/funding semantics, or unrelated flows.
+- Changes to pricing rules (30/40/30, 3 milestones), escrow/funding semantics, or unrelated flows.
 
 ## Not Doing (and Why)
 - **Client term editing** — removed to make term authorship unambiguous and the audit trail trustworthy (client requests changes in chat instead); avoids dual-editor ambiguity.

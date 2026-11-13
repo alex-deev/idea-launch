@@ -21,7 +21,7 @@ export type OfferTermsInput = {
   longTermAmountCents?: unknown;
   longTermCadence?: unknown;
   longTermNotes?: unknown;
-  milestoneDueDates?: unknown; // array by index (0-3) or by stageNumber
+  milestoneDueDates?: unknown; // array by index (0-2) or by stageNumber (1-3)
 };
 
 export function parseTotalCents(value: unknown): number | null {
@@ -62,16 +62,16 @@ function toIsoOrNull(value: unknown): string | null {
 }
 
 export function parseMilestoneDueDates(value: unknown): Array<string | null> {
-  const result: Array<string | null> = [null, null, null, null];
+  const result: Array<string | null> = [null, null, null];
   if (Array.isArray(value)) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       result[i] = toIsoOrNull(value[i]);
     }
     return result;
   }
   if (value && typeof value === "object") {
     const obj = value as Record<string, unknown>;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       const stage = i + 1;
       const byStage = obj[String(stage)] ?? obj[stage];
       const byIndex = obj[String(i)];
@@ -85,7 +85,7 @@ export function buildMilestonesSnapshot(
   totalCents: number,
   dueDates?: Array<string | null>,
 ): OfferMilestoneSnapshotItem[] {
-  const dates = dueDates ?? [null, null, null, null];
+  const dates = dueDates ?? [null, null, null];
   return buildMilestones(totalCents).map((m, i) => ({
     stageNumber: m.stageNumber,
     title: m.title,
@@ -106,8 +106,8 @@ export function normalizeOfferTerms(
   },
 ) {
   const existingDates = Array.isArray(existing?.milestonesSnapshot)
-    ? (existing!.milestonesSnapshot as any[]).map((m) => (m?.dueDate ?? null) as string | null)
-    : [null, null, null, null];
+    ? [0, 1, 2].map((i) => ((existing!.milestonesSnapshot as any[])[i]?.dueDate ?? null) as string | null)
+    : [null, null, null];
   const providedDates =
     input.milestoneDueDates !== undefined ? parseMilestoneDueDates(input.milestoneDueDates) : null;
   const dueDates = providedDates
@@ -137,8 +137,8 @@ export function normalizeOfferTerms(
 }
 
 export function snapshotDueDates(snapshot: unknown): Array<Date | null> {
-  if (!Array.isArray(snapshot)) return [null, null, null, null];
-  return [0, 1, 2, 3].map((i) => {
+  if (!Array.isArray(snapshot)) return [null, null, null];
+  return [0, 1, 2].map((i) => {
     const raw = (snapshot[i] as any)?.dueDate;
     if (!raw) return null;
     const d = new Date(raw);

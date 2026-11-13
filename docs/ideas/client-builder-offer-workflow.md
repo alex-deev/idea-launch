@@ -6,7 +6,7 @@
 ## Recommended Direction
 Adopt **V2 + V5 + V4-lite**: a **lean first-class `Offer` model** with **multi-builder bidding decoupled from exclusive claim**, and a **lightweight structured term sheet** for negotiation/finalization.
 
-- **V2 (lean Offer record):** introduce an `Offer` entity tied to `project` + `builder` (one active offer per builder per project) capturing status, proposed/agreed `total` (milestones auto-derived 0/30/40/30, read-only), long-term cost terms, and milestone due dates. Offers are comparable, auditable, and enforceable (not just `WIDGET` payloads).
+- **V2 (lean Offer record):** introduce an `Offer` entity tied to `project` + `builder` (one active offer per builder per project) capturing status, proposed/agreed `total` (milestones auto-derived 30/40/30 over 3 milestones, read-only), long-term cost terms, and milestone due dates. Offers are comparable, auditable, and enforceable (not just `WIDGET` payloads).
 - **V5 (decouple bids from claim):** published plans are visible to eligible builders without exclusive claim; builders submit/maintain their single offer. Builder assignment/commitment is established through **selection and acceptance** of an offer (not first-claim).
 - **V4-lite (structured terms, minimal UI):** negotiation centers on a small term sheet — **total** (recalculates milestones), **long-term costs** (separate), and **demo/deployment deadlines** (`dueDate`s) — with the builder able to mark a revision as **“Final offer”**. Chat remains available for discussion with the selected builder during negotiation (pre-funding) but terms of record live on the offer.
 
@@ -71,7 +71,7 @@ This preserves the platform’s strengths (AI-scoped plans, fixed milestone stru
 ## Not Doing (and Why)
 - **Not keeping offers as unstructured chat-only payloads** — comparison, blocking, and finalization need enforceable state (V2 over V1).
 - **Not keeping exclusive first-claim as the entry point** — it prevents multiple builders from offering on the same plan (V5).
-- **Not allowing per-milestone price edits** — conflicts with the agreed auto-calc (0/30/40/30) rule; negotiate the total instead.
+- **Not allowing per-milestone price edits** — conflicts with the agreed auto-calc (30/40/30, 3 milestones) rule; negotiate the total instead.
 - **Not auto-funding on selection** — funding/escrow commits only on explicit acceptance of the **final** offer.
 - **Not escrowing/billing long-term costs in MVP** — capture as terms only.
 - **Not a full redesign in one pass** — evolve within current React/Express/Socket.io/Prisma patterns.
@@ -80,11 +80,11 @@ This preserves the platform’s strengths (AI-scoped plans, fixed milestone stru
 - **Model:** add `Offer` (and minimal supporting fields/enums) in Prisma; relate to `Project`, builder `User`, and link accepted offer to project terms. Keep `Message` `WIDGET` rendering compatible or derive it from `Offer` for backward display.
 - **Realtime/API:** events/endpoints for submit-offer, revise/withdraw, list-offers, select-offer, update-terms, mark-final, accept-final, cancel-negotiation (with ack/broadcasts paralleling existing socket patterns).
 - **Auth/ownership:** enforce builder ownership of their single offer and client ownership of selection/acceptance/cancel (addressing current trust gaps where feasible in touched paths).
-- **Terms of record:** on acceptance, apply agreed `total` (recalc milestones 0/30/40/30), `dueDate`s, and assignment to project/milestones; negotiated drafts and long-term-cost terms live on the offer (and long-term terms surfaced on project/record as needed).
+- **Terms of record:** on acceptance, apply agreed `total` (recalc milestones 30/40/30, 3 milestones), `dueDate`s, and assignment to project/milestones; negotiated drafts and long-term-cost terms live on the offer (and long-term terms surfaced on project/record as needed).
 
 ## Guiding Decisions (summary)
 - **V2 + V5 + V4-lite**, MVP within current architecture.
 - **Primary users:** clients choosing among builders. **Success:** confident acceptance of a final offer.
-- **Pricing:** negotiate total; milestones auto-recalculated 0/30/40/30 and read-only. Long-term costs separate, structured, informational in MVP.
+- **Pricing:** negotiate total; milestones auto-recalculated 30/40/30 (3 milestones) and read-only. Long-term costs separate, structured, informational in MVP. Agreement is implicit at final-offer acceptance (not a milestone).
 - **Publish = Approve & Publish** (`OPEN_FOR_BIDS`). **No separate publish step.**
 - **Pre-funding chat:** client + selected builder only (project room). **Do not update official spec until this idea is promoted to a spec change.**

@@ -231,7 +231,8 @@ export async function releaseMilestone(
     throw new EscrowError("Milestone amount must be a non-negative integer", 400);
   }
 
-  // Agreement (0%) has no payout: mark released without creating a transfer.
+  // Milestones are releasable/payable (30/40/30). Zero-amount releases are unexpected
+  // in the 3-milestone model but handled without creating a transfer.
   if (milestone.amount === 0) {
     const releasedMilestone = await prisma.milestone.update({
       where: { id: milestone.id },

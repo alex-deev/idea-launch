@@ -1,11 +1,10 @@
 export const MILESTONE_TITLES = [
-  "Agreement",
   "Initial Demo",
   "Final Demo",
   "Deployment",
 ] as const;
 
-export const MILESTONE_RELEASE_PERCENTS = [0, 30, 40, 30] as const;
+export const MILESTONE_RELEASE_PERCENTS = [30, 40, 30] as const;
 
 export interface MilestoneBlueprint {
   stageNumber: number;
@@ -19,7 +18,7 @@ export function calculateMilestoneAmounts(totalCents: number): number[] {
   const initialDemo = Math.round((total * 30) / 100);
   const finalDemo = Math.round((total * 40) / 100);
   const deployment = total - initialDemo - finalDemo;
-  return [0, initialDemo, finalDemo, deployment];
+  return [initialDemo, finalDemo, deployment];
 }
 
 export function buildMilestones(totalCents: number): MilestoneBlueprint[] {

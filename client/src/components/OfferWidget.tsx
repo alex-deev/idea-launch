@@ -128,8 +128,8 @@ function TermSheet({
   const [ltCadence, setLtCadence] = useState(initialLongTermCadence ?? "NONE");
   const [ltNotes, setLtNotes] = useState(initialLongTermNotes ?? "");
   const [dueDates, setDueDates] = useState<string[]>(() => {
-    const base = initialDueDates ?? [null, null, null, null];
-    return [0, 1, 2, 3].map((i) => toDateInput(base[i]));
+    const base = initialDueDates ?? [null, null, null];
+    return [0, 1, 2].map((i) => toDateInput(base[i]));
   });
 
   const totalCents = Math.round(Number(total) * 100);

@@ -28,7 +28,7 @@ export const scopeBlueprintSchema = z.object({
         amount: z.number().int().nonnegative(),
       }),
     )
-    .length(4),
+    .length(3),
   outOfScope: z.array(z.string().min(1)).max(12),
   appKinds: z.array(z.string().min(1)).optional().default([]),
   appKindOther: z.string().min(1).optional(),
@@ -54,9 +54,10 @@ const DEFAULT_BUDGET_CENTS = 100_000; // $1,000.00
 const SYSTEM_PROMPT = `You are the Idea Launch scoping agent. Convert a client's software idea into a delivery blueprint for a milestone-based escrow marketplace.
 
 Rules:
-- Amounts are integer USD cents. The four milestone amounts MUST sum exactly to the client's stated budget.
-- Use exactly four milestones in this order: Agreement, Initial Demo, Final Demo, Deployment.
-- Milestone payout split is business-model auto-calculated: Agreement 0%, Initial Demo 30%, Final Demo 40%, Deployment 30% of the total budget (Agreement has no payout).
+- Amounts are integer USD cents. The three milestone amounts MUST sum exactly to the client's stated budget.
+- Use exactly three milestones in this order: Initial Demo, Final Demo, Deployment.
+- Milestone payout split is business-model auto-calculated: Initial Demo 30%, Final Demo 40%, Deployment 30% of the total budget.
+- Agreement is implicit when the client accepts the final offer (not a milestone and not chargeable).
 - Consider the client's selected "App kind" (platform target) when shaping the architecture, features, and out-of-scope items (e.g. website, web app, mobile app, desktop app, or other targets). Keep recommendations concrete and appropriate for the stated platform(s).
 - If "Other" app kind details are provided, reflect them.
 - Do not assume a specific tech stack unless implied by the idea/platform; be practical and clear.
@@ -123,7 +124,7 @@ function describeAppKinds(input: SynthesisInput): string {
 }
 
 /**
- * Enforce fixed milestone titles/order and the 0/30/40/30 business-model split
+ * Enforce fixed milestone titles/order and the 30/40/30 business-model split
  * so escrow math never drifts from the stated budget. Preserve app kind fields.
  */
 function normalizeBlueprint(
