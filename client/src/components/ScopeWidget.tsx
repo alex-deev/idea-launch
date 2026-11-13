@@ -23,6 +23,11 @@ interface ScopePayload {
   appKindOther?: string;
 }
 
+interface OpenBidProjectSummary {
+  id: string;
+  title: string;
+}
+
 interface ScopeWidgetProps {
   socket: Socket | null;
   projectId: string;
@@ -31,6 +36,9 @@ interface ScopeWidgetProps {
   messageId?: string;
   editable?: boolean;
   totalCents?: number;
+  openBidsCount?: number;
+  openBidsLimit?: number;
+  openBidProjects?: OpenBidProjectSummary[];
 }
 
 export function ScopeWidget({
@@ -41,9 +49,13 @@ export function ScopeWidget({
   messageId,
   editable = false,
   totalCents,
+  openBidsCount = 0,
+  openBidsLimit = 3,
+  openBidProjects = [],
 }: ScopeWidgetProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<ScopePayload>(payload ?? {});
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const canEdit = editable && role === "CLIENT";
   const showArchitecture = role !== "CLIENT";
@@ -87,11 +99,20 @@ export function ScopeWidget({
   }, [draft, isEditing, normalizedView, resolvedTotal]);
 
   const handleApprove = () => {
-    socket?.emit("approve_scope", {
-      projectId,
-      messageId,
-      payload: approvePayload,
-    });
+    setPublishError(null);
+    socket?.emit(
+      "approve_scope",
+      {
+        projectId,
+        messageId,
+        payload: approvePayload,
+      },
+      (res: any) => {
+        if (res && res.ok === false && res.error) {
+          setPublishError(String(res.error));
+        }
+      },
+    );
     setIsEditing(false);
   };
 
@@ -281,9 +302,42 @@ export function ScopeWidget({
         )}
 
         {role === "CLIENT" && editable && !isEditing ? (
-          <Button className="w-full" onClick={handleApprove}>
-            Approve &amp; Publish
-          </Button>
+          (() => {
+            const atCap = openBidsCount >= openBidsLimit;
+            const nearCap = !atCap && openBidsCount === openBidsLimit - 1;
+            return (
+              <div className="space-y-2">
+                <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                  <p className="font-medium">Open for bids: {openBidsCount}/{openBidsLimit}</p>
+                  {nearCap ? (
+                    <p className="text-xs text-muted-foreground">1 slot left. Publishing this plan will use your last open slot.</p>
+                  ) : !atCap ? (
+                    <p className="text-xs text-muted-foreground">To keep projects focused and give builders timely attention, you can have up to {openBidsLimit} projects open for bids at a time.</p>
+                  ) : null}
+                </div>
+                {atCap ? (
+                  <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+                    <p className="font-medium">You’ve reached the limit of {openBidsLimit} projects open for bids.</p>
+                    <p>To publish this plan, free a slot by accepting/funding an offer (moves a project to Active) or canceling an open project.</p>
+                    {openBidProjects.length ? (
+                      <div>
+                        <p className="font-medium">Projects currently open for bids:</p>
+                        <ul className="list-disc pl-5">
+                          {openBidProjects.map((p) => (
+                            <li key={p.id}>{p.title}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                {publishError ? <p className="text-sm text-red-600">{publishError}</p> : null}
+                <Button className="w-full" onClick={handleApprove} disabled={atCap}>
+                  Approve &amp; Publish
+                </Button>
+              </div>
+            );
+          })()
         ) : role === "CLIENT" && editable && isEditing ? null : role === "CLIENT" ? (
           <p className="text-muted-foreground">Blueprint approved and published.</p>
         ) : (

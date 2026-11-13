@@ -6,7 +6,7 @@
 |---|---|---|---|---|---|
 | `join_project` | C→S | `{ projectId, userId? }` | — | Joins room; loads project (+ milestones, offers/selection as applicable); replays history | `project_updated`, `message_history`, `offers_updated` (to caller/room as applicable) |
 | `send_message` | C→S | `{ projectId, content, senderId?, type?, payload? }` | `{ ok, message }` | Inserts `Message`; scope trigger special-case. **Pre-funding composer allowed only for client + selected builder during offer negotiation; always allowed when `ACTIVE` (and subject to role/room rules).** | `new_message` (room) |
-| `approve_scope` | C→S | `{ projectId, userId?, payload?, messageId? }` | `{ ok, project }` | **Approve & Publish:** server normalizes scope/milestones/total (0/30/40/30), persists blueprint, sets `OPEN_FOR_BIDS` (open for offers) | `message_updated` (scope), `project_updated`, `new_message` |
+| `approve_scope` | C→S | `{ projectId, userId?, payload?, messageId? }` | `{ ok, project }` (or `{ ok: false, error, code, openBidsCount, openBidsLimit }`) | **Approve & Publish:** server normalizes scope/milestones/total (0/30/40/30), persists blueprint, enforces client **open-for-bids limit** (max 3 `OPEN_FOR_BIDS`), then sets `OPEN_FOR_BIDS` (open for offers) | `message_updated` (scope), `project_updated`, `new_message` |
 | `submit_offer` | C→S | `{ projectId, builderId, totalCents, longTermAmountCents?, longTermCadence?, longTermNotes?, milestoneDueDates? }` | `{ ok, offer }` | Creates builder’s **single** `SUBMITTED` offer (auto-calc milestones snapshot). Rejected if builder already has **3 accepted/active (`ACTIVE`) projects**. | `offers_updated`, `new_message` (offer widget/system) |
 | `revise_offer` | C→S | `{ offerId|projectId, builderId, ...terms }` | `{ ok, offer }` | Updates terms on builder’s offer when allowed (`SUBMITTED`; or post-cancel reverted state per rules) | `offers_updated`, `new_message` |
 | `withdraw_offer` | C→S | `{ offerId|projectId, builderId }` | `{ ok, offer }` | Sets offer `WITHDRAWN` (final for project in MVP) when allowed | `offers_updated`, `new_message` |
@@ -108,7 +108,9 @@ sequenceDiagram
 - **Composer gating (server-enforced):** freeform `TEXT` messages allowed when project is `ACTIVE`, or when sender is the **client or selected builder** during an active negotiation/selection/final-decision window pre-funding; otherwise rejected (prevents premature/unscoped chat). System/widget emissions follow their specific handlers.
 
 #### `approve_scope` (Approve & Publish)
-- Requires `projectId`. Normalizes scope payload and project milestones/total to fixed 4 stages (0/30/40/30), persists blueprint/total, sets `OPEN_FOR_BIDS` (published/open for offers), emits `message_updated` (if applicable), `project_updated`, and `SYSTEM` message.
+- Requires `projectId`. Normalizes scope payload and project milestones/total to fixed 4 stages (0/30/40/30), persists blueprint/total.
+- Enforces client **open-for-bids limit**: if the client already has **≥ 3** projects in `OPEN_FOR_BIDS` (including negotiating/selected pre-funding), publish is rejected with a clear error/count (`CLIENT_OPEN_BIDS_LIMIT_REACHED`) and no state change. `SCOPING` drafts are not limited; slots free on `ACTIVE`/`CANCELLED`.
+- On success sets `OPEN_FOR_BIDS` (published/open for offers), emits `message_updated` (if applicable), `project_updated`, and `SYSTEM` message.
 
 #### `submit_offer`
 - Builder-only for an `OPEN_FOR_BIDS` project. Enforces **one active offer per builder** (`@@unique(projectId,builderId)` / equivalent) and the **accepted-active project limit**: builders with **3 `ACTIVE` projects** (`builderId` assigned, offers accepted) cannot submit offers on new project plans. Computes milestones snapshot from `totalCents` (0/30/40/30, read-only), stores long-term cost terms (informational) and proposed milestone due dates. Creates `SUBMITTED` offer; emits `offers_updated` (and offer widget/system message for compatibility).

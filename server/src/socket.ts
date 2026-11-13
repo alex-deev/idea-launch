@@ -20,6 +20,7 @@ import { synthesizeScope } from "./services/synthesis.js";
 type JsonRecord = Record<string, unknown>;
 
 const BUILDER_PROJECT_LIMIT = 3;
+const CLIENT_OPEN_BIDS_LIMIT = 3;
 const PROBATIONARY_CAP_CENTS = 150000;
 
 async function countBuilderAcceptedActiveProjects(builderId: string) {
@@ -600,6 +601,22 @@ export function initializeSocket(httpServer: HttpServer) {
         if (actorId && existingProject.clientId !== actorId) {
           ack?.({ ok: false, error: "Only the project client can approve scope" });
           return;
+        }
+
+        if (existingProject.status === "SCOPING") {
+          const openBidsCount = await prisma.project.count({
+            where: { clientId: existingProject.clientId, status: "OPEN_FOR_BIDS" as any },
+          });
+          if (openBidsCount >= CLIENT_OPEN_BIDS_LIMIT) {
+            ack?.({
+              ok: false,
+              error: `You can have at most ${CLIENT_OPEN_BIDS_LIMIT} projects open for bids at a time (${openBidsCount}/${CLIENT_OPEN_BIDS_LIMIT} open). Accept/fund an offer or cancel an open project to free a slot, then try publishing again.`,
+              code: "CLIENT_OPEN_BIDS_LIMIT_REACHED",
+              openBidsCount,
+              openBidsLimit: CLIENT_OPEN_BIDS_LIMIT,
+            });
+            return;
+          }
         }
 
         const scopeMessage =

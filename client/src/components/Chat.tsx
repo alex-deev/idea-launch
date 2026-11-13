@@ -47,6 +47,9 @@ interface ChatProps {
   name: string;
   probationary?: boolean;
   builderAtCapacity?: boolean;
+  clientOpenBidsCount?: number;
+  clientOpenBidsLimit?: number;
+  clientOpenBidProjects?: { id: string; title: string }[];
   projectId?: string;
   onProjectStatusChange?: (projectId: string, status: string) => void;
   onClose?: () => void;
@@ -58,6 +61,9 @@ export function Chat({
   name,
   probationary = false,
   builderAtCapacity = false,
+  clientOpenBidsCount = 0,
+  clientOpenBidsLimit = 3,
+  clientOpenBidProjects = [],
   projectId = "project-123",
   onProjectStatusChange,
   onClose,
@@ -406,6 +412,9 @@ export function Chat({
                           messageId={message.id}
                           editable={projectStatus === "SCOPING"}
                           totalCents={scopeTotalCents || project?.totalEscrow || undefined}
+                          openBidsCount={clientOpenBidsCount}
+                          openBidsLimit={clientOpenBidsLimit}
+                          openBidProjects={clientOpenBidProjects}
                         />
                       </div>
                     );

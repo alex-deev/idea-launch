@@ -248,6 +248,9 @@ export function ProjectWorkspace({
   const archivedProjects = projects.filter((project) => project.status === "CANCELLED");
   const visibleProjects = projects.filter((project) => project.status !== "CANCELLED");
   const acceptedActiveProjects = projects.filter((project) => project.status === "ACTIVE");
+  const openBidProjects = projects.filter((project) => project.status === "OPEN_FOR_BIDS");
+  const clientOpenBidsCount = role === "CLIENT" ? openBidProjects.length : 0;
+  const CLIENT_OPEN_BIDS_LIMIT = 3;
   const atAcceptedLimit =
     role === "BUILDER" && acceptedActiveProjects.length >= BUILDER_PROJECT_LIMIT;
 
@@ -352,6 +355,17 @@ export function ProjectWorkspace({
               </Button>
             </div>
           </div>
+
+          {role === "CLIENT" ? (
+            <div className="rounded-md border bg-muted/30 p-2 text-xs">
+              <p className="font-medium">Open for bids: {clientOpenBidsCount}/{CLIENT_OPEN_BIDS_LIMIT}</p>
+              {clientOpenBidsCount === CLIENT_OPEN_BIDS_LIMIT - 1 ? (
+                <p className="text-muted-foreground">1 slot left.</p>
+              ) : clientOpenBidsCount >= CLIENT_OPEN_BIDS_LIMIT ? (
+                <p className="text-muted-foreground">Limit reached. Accept/fund or cancel an open project to free a slot.</p>
+              ) : null}
+            </div>
+          ) : null}
 
           {role === "CLIENT" && isCreateFormOpen ? (
             <Card className="shrink-0">
@@ -568,6 +582,9 @@ export function ProjectWorkspace({
             name={name}
             probationary={probationary}
             builderAtCapacity={atAcceptedLimit}
+            clientOpenBidsCount={clientOpenBidsCount}
+            clientOpenBidsLimit={CLIENT_OPEN_BIDS_LIMIT}
+            clientOpenBidProjects={openBidProjects.map((p) => ({ id: p.id, title: p.title }))}
             onProjectStatusChange={handleProjectStatusChange}
             onClose={closeProject}
           />

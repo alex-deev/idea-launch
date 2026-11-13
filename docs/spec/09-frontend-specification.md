@@ -11,7 +11,7 @@
 - "Project Plans" sidebar lists the user's projects (client: own/published projects; builder: own in-progress/accepted projects and **published/open projects available to offer on**). It collapses left into a 48px rail (icon + vertical label + project count) via the header toggle. Below 1024px it starts collapsed and re-collapses on project selection; wide-layout toggles persist to `localStorage` (`idea-launch:project-plans-collapsed`), narrow auto-collapses do not.
 - **Builder accepted-active limit:** builders with **3 accepted/`ACTIVE` projects** are at capacity. The sidebar shows accepted-active capacity, disables “Open for offers”, and when that view is empty/blocked explains why: a limit-reached message if blocked by capacity (`unavailableReason: "AT_CAPACITY"` or local limit state), or “No projects open for offers right now.” if genuinely none are available.
 - **No exclusive claim flow:** multiple builders may view/open a published plan and submit offers; builder assignment occurs on acceptance of the selected final offer.
-- Create project (client) flow; builder capacity/eligibility rules apply where relevant.
+- Create project (client) flow; builder capacity/eligibility rules apply where relevant. For clients, the sidebar surfaces **“Open for bids: X/3”** with a nudge at 2/3 and limit-reached guidance at 3/3 (slots: `OPEN_FOR_BIDS`; drafts unlimited).
 - Polls the project list every 5s and on tab focus; guards overlapping polls; skips no-op state updates.
 - Cancelled projects move to a collapsible "Archived" section; selecting an archived project reopens it. Cancelling the open project clears the selection only on transition to `CANCELLED`.
 - No auto-selection of a project; right panel stays empty until selection.
@@ -30,10 +30,11 @@
 - Scroll-to-bottom behavior; chat/project controls (extend/cancel/rate) available per status/role.
 
 ### 9.4 `ScopeIntakeForm.tsx` / `ScopeWidget.tsx`
-- Intake form collects idea/budget/timeline/stack and triggers synthesis.
-- `ScopeWidget` renders the blueprint (summary, features, milestones, out-of-scope). **Technical Architecture is hidden from clients** (UI-only) and visible to builders.
+- Intake form collects idea/budget/timeline/app kind and triggers synthesis.
+- `ScopeWidget` renders the blueprint (summary, app kind, features, milestones, out-of-scope). **Technical Architecture is hidden from clients** (UI-only) and visible to builders.
 - Scope content is editable by the client only before approval; milestone titles/order are fixed and **milestone prices are auto-calculated (Agreement 0%, Initial Demo 30%, Final Demo 40%, Deployment 30% of total) and read-only**.
-- While editing, the **Approve** action is hidden; client saves/cancels edits, then approves. Client action **“Approve & Publish”** emits `approve_scope` (server enforces normalized milestones/total) and moves the project to `OPEN_FOR_BIDS` (open for builder offers).
+- While editing, the **Approve** action is hidden; client saves/cancels edits, then approves. Client action **“Approve & Publish”** emits `approve_scope` (server enforces normalized milestones/total and the client **open-for-bids limit**) and moves the project to `OPEN_FOR_BIDS` (open for builder offers).
+- **Client open-for-bids quota (guided):** shows **“Open for bids: X/3”** during publish; nudges at **2/3** (“1 slot left”); at **3/3** disables publish and shows actionable guidance to free a slot (accept/fund → `ACTIVE`, or cancel → `CANCELLED`) and lists open projects occupying slots. Server rejection is surfaced if encountered. `SCOPING` drafts remain unlimited.
 
 ### 9.5 Widgets / views
 | Component | Purpose |
