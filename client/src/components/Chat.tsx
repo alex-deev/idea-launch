@@ -297,6 +297,23 @@ export function Chat({
 
   const nextDemoDeadline = getMilestoneDeadlineText(nextDemoMilestone, nowTick);
 
+  const nextDemoLabel = (() => {
+    if (!nextDemoMilestone?.id) return "Submit Demo";
+    const milestoneTitle = String(nextDemoMilestone.title ?? "Demo");
+    const hasSubmittedDemo =
+      !!nextDemoMilestone.currentDemoMessageId &&
+      nextDemoMilestone.status !== "RELEASED" &&
+      nextDemoMilestone.status !== "COMPLETED";
+    const isResubmission =
+      nextDemoMilestone.status === "CHANGES_REQUESTED" || hasSubmittedDemo;
+    return `${isResubmission ? "Resubmit" : "Submit"} ${milestoneTitle}`;
+  })();
+
+  const canSubmitDemo =
+    !!nextDemoMilestone?.id &&
+    nextDemoMilestone.status !== "RELEASED" &&
+    nextDemoMilestone.status !== "COMPLETED";
+
   const submitDemo = () => {
     if (role !== "BUILDER" || projectStatus !== "ACTIVE" || !socketRef.current) return;
     if (!nextDemoMilestone?.id) return;
@@ -488,11 +505,11 @@ export function Chat({
           )}
 
           {!showIntakeForm && canChat ? (
-            <div className="flex flex-wrap items-end gap-2 border-t border-border/60 -mx-3 px-3 py-3">
+            <div className="flex flex-col gap-2 border-t border-border/60 -mx-3 px-3 py-3">
               {role === "BUILDER" && projectStatus === "ACTIVE" ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="outline" onClick={submitDemo} disabled={!nextDemoMilestone?.id}>
-                    Submit Next Demo
+                  <Button variant="outline" onClick={submitDemo} disabled={!canSubmitDemo}>
+                    {nextDemoLabel}
                   </Button>
                   {nextDemoDeadline ? (
                     <span
@@ -507,15 +524,20 @@ export function Chat({
                   ) : null}
                 </div>
               ) : null}
-              <Input
-                value={draft}
-                onChange={(event: ChangeEvent<HTMLInputElement>) => setDraft(event.target.value)}
-                onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
-                  if (event.key === "Enter") sendMessage();
-                }}
-                placeholder={isNegotiationParticipant ? "Discuss terms with the selected builder..." : "Type a message..."}
-              />
-              <Button onClick={sendMessage}>Send</Button>
+              <div className="flex items-center gap-2">
+                <Input
+                  className="flex-1 min-w-0"
+                  value={draft}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => setDraft(event.target.value)}
+                  onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+                    if (event.key === "Enter") sendMessage();
+                  }}
+                  placeholder={isNegotiationParticipant ? "Discuss terms with the selected builder..." : "Type a message..."}
+                />
+                <Button className="shrink-0" onClick={sendMessage}>
+                  Send
+                </Button>
+              </div>
             </div>
           ) : null}
         </CardContent>

@@ -72,6 +72,15 @@ export function DemoWidget({
     isDemoReviewMilestone &&
     status === "IN_PROGRESS";
   const isChangesRequested = isCurrent && status === "CHANGES_REQUESTED";
+  const isApproved =
+    isCurrent && (status === "RELEASED" || status === "COMPLETED");
+  const statusBadge = !isCurrent
+    ? { label: "Previous submission", variant: "outline" as const }
+    : isChangesRequested
+      ? { label: "Changes requested", variant: "destructive" as const }
+      : isApproved
+        ? { label: "Approved", variant: "default" as const }
+        : { label: "Awaiting review", variant: "secondary" as const };
 
   const revisionTarget = milestone?.revisionRequestedAt
     ? new Date(milestone.revisionRequestedAt).getTime() + 24 * 60 * 60 * 1000
@@ -105,13 +114,7 @@ export function DemoWidget({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base">Demo Submission</CardTitle>
-          {isCurrent ? (
-            <Badge variant={isChangesRequested ? "destructive" : "secondary"}>
-              {isChangesRequested ? "Changes requested" : "Awaiting review"}
-            </Badge>
-          ) : (
-            <Badge variant="outline">Previous submission</Badge>
-          )}
+          <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
@@ -177,7 +180,7 @@ export function DemoWidget({
             </div>
           )
         ) : isCurrent ? (
-          status === "RELEASED" || status === "COMPLETED" ? (
+          isApproved ? (
             <p className="text-green-700">Approved and released.</p>
           ) : isChangesRequested ? (
             role === "BUILDER" ? (
