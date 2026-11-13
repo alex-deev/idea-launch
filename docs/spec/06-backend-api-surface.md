@@ -7,7 +7,7 @@
 | GET | `/health` | Public | `{ "status": "ok", "uptime": <seconds> }` |
 | * | `/auth/*` | Auth.js | Standard Auth.js endpoints (sign-in, session, callbacks, signout) |
 | POST | `/api/auth/register` | Public | Create account (`name`, `email`, `password`, optional `role`) |
-| GET | `/api/projects` | Client-supplied `userId`/`role` | List client's projects, or builder's assigned/active projects and **published/open (`OPEN_FOR_BIDS`) projects available to offer on** (`?available=true`), including offer-summary context as needed |
+| GET | `/api/projects` | Client-supplied `userId`/`role` | List client's projects, or builder's assigned/accepted projects and **published/open (`OPEN_FOR_BIDS`) projects available to offer on** (`?available=true`), including offer-summary context as needed. For builders at the accepted-active limit (`>= 3` projects with `status=ACTIVE` and `builderId=user`), `available=true` returns `{ projects: [], unavailableReason: "AT_CAPACITY" }` instead of open plans. |
 | GET | `/api/projects/:id` | Public (by id) | Project detail with milestones/messages/client/builder and (as applicable) offers/selection state |
 | GET | `/api/projects/:id/offers` | Client-supplied (authorized) | List offers for a project (client: all; builder: own/visible per rules) for comparison |
 | POST | `/api/projects` | Client-supplied `clientId` | Create project (SCOPING) with optional milestones |

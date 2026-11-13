@@ -43,6 +43,7 @@ interface OffersPanelProps {
   selectedOfferId?: string | null;
   offers: OfferRecord[];
   probationary?: boolean;
+  builderAtCapacity?: boolean;
   onSubmitOffer: (terms: {
     totalCents: number;
     longTermAmountCents?: number | null;
@@ -237,6 +238,7 @@ export function OffersPanel({
   selectedOfferId,
   offers,
   probationary,
+  builderAtCapacity = false,
   onSubmitOffer,
   onReviseOffer,
   onWithdrawOffer,
@@ -299,12 +301,19 @@ export function OffersPanel({
         <div className="space-y-3">
       {role === "BUILDER" ? (
         !myOffer ? (
-          <TermSheet
-            title="Submit your offer (one per project)"
-            initialTotalCents={defaultTotalCents}
-            submitLabel="Submit offer"
-            onSubmit={onSubmitOffer}
-          />
+          builderAtCapacity ? (
+            <div className="rounded-md border p-3 text-sm text-muted-foreground">
+              You’ve reached the limit of 3 accepted active projects, so you can’t submit an offer for
+              a new project plan right now.
+            </div>
+          ) : (
+            <TermSheet
+              title="Submit your offer (one per project)"
+              initialTotalCents={defaultTotalCents}
+              submitLabel="Submit offer"
+              onSubmit={onSubmitOffer}
+            />
+          )
         ) : myOffer.status === "SUBMITTED" ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm">

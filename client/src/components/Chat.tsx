@@ -46,6 +46,7 @@ interface ChatProps {
   role: string;
   name: string;
   probationary?: boolean;
+  builderAtCapacity?: boolean;
   projectId?: string;
   onProjectStatusChange?: (projectId: string, status: string) => void;
   onClose?: () => void;
@@ -56,6 +57,7 @@ export function Chat({
   role,
   name,
   probationary = false,
+  builderAtCapacity = false,
   projectId = "project-123",
   onProjectStatusChange,
   onClose,
@@ -313,11 +315,14 @@ export function Chat({
           <div className="flex w-full items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <CardTitle className="truncate">
-                {project?.title ?? `Project ${projectId}`} (
-                {role === "CLIENT"
-                  ? (project?.builder?.name ?? "Builder")
-                  : (project?.client?.name ?? "Client")}
-                )
+                {(() => {
+                  const title = project?.title ?? `Project ${projectId}`;
+                  const builderName =
+                    project?.builder?.name ?? (selectedOfferId ? selectedOffer?.builder?.name : null);
+                  const counterpartyName =
+                    role === "CLIENT" ? builderName : project?.client?.name;
+                  return counterpartyName ? `${title} (${counterpartyName})` : title;
+                })()}
               </CardTitle>
               {projectStatus === "ACTIVE" ? (
                 <Badge variant="secondary" className="shrink-0">Funded</Badge>
@@ -445,6 +450,7 @@ export function Chat({
                       selectedOfferId={selectedOfferId}
                       offers={offers}
                       probationary={probationary}
+                      builderAtCapacity={builderAtCapacity}
                       defaultTotalCents={scopeTotalCents || project?.totalEscrow || 100000}
                       onSubmitOffer={(terms) => emitAck("submit_offer", { projectId, builderId: userId, ...terms })}
                       onReviseOffer={(terms) => emitAck("revise_offer", { projectId, builderId: userId, ...terms })}

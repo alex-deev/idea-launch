@@ -22,6 +22,21 @@ type JsonRecord = Record<string, unknown>;
 const BUILDER_PROJECT_LIMIT = 3;
 const PROBATIONARY_CAP_CENTS = 150000;
 
+async function countBuilderAcceptedActiveProjects(builderId: string) {
+  return prisma.project.count({
+    where: { builderId, status: "ACTIVE" as any },
+  });
+}
+
+async function assertBuilderCanTakeNewProjects(builderId: string) {
+  const activeAccepted = await countBuilderAcceptedActiveProjects(builderId);
+  if (activeAccepted >= BUILDER_PROJECT_LIMIT) {
+    throw new Error(
+      `You have ${BUILDER_PROJECT_LIMIT} accepted active projects and cannot take on new project plans right now.`,
+    );
+  }
+}
+
 const offerInclude = {
   builder: { select: { id: true, name: true, email: true } },
 } as const;
@@ -678,6 +693,8 @@ export function initializeSocket(httpServer: HttpServer) {
           ack?.({ ok: false, error: "Client cannot submit an offer" });
           return;
         }
+
+        await assertBuilderCanTakeNewProjects(builderId);
 
         const existing = await prisma.offer.findUnique({
           where: { projectId_builderId: { projectId, builderId } },

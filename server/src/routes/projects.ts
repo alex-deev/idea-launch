@@ -47,6 +47,16 @@ projectsRouter.get("/", async (req, res) => {
 
   const available = req.query.available === "true";
 
+  if (role === "BUILDER" && available) {
+    const acceptedActiveCount = await prisma.project.count({
+      where: { builderId: userId, status: "ACTIVE" as any },
+    });
+    if (acceptedActiveCount >= BUILDER_PROJECT_LIMIT) {
+      res.json({ projects: [], unavailableReason: "AT_CAPACITY" });
+      return;
+    }
+  }
+
   let where: any;
   if (role === "BUILDER") {
     if (available) {

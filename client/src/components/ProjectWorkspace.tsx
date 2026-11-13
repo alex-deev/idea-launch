@@ -4,6 +4,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Chat } from "@/components/Chat";
 import { API_URL } from "@/lib/api";
 import { buildMilestones } from "@/lib/milestones";
@@ -57,11 +58,14 @@ export function ProjectWorkspace({
 }: ProjectWorkspaceProps) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [availableProjects, setAvailableProjects] = useState<ProjectSummary[]>([]);
+  const [availableUnavailableReason, setAvailableUnavailableReason] = useState<string | null>(null);
   const [view, setView] = useState<"mine" | "available">("mine");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
+  const [newProjectTitle, setNewProjectTitle] = useState("");
   const [isArchivedOpen, setIsArchivedOpen] = useState(false);
   const [isPlansCollapsed, setIsPlansCollapsed] = useState(
     () => isNarrowViewport() || readPlansCollapsedPreference(),
@@ -86,13 +90,18 @@ export function ProjectWorkspace({
       const loaded = mineData.projects ?? [];
 
       let availableLoaded: ProjectSummary[] = [];
+      let availableReason: string | null = null;
       if (role === "BUILDER") {
         const availableResponse = await fetch(
           `${API_URL}/api/projects?userId=${encodeURIComponent(userId)}&role=${role}&available=true`,
         );
         if (availableResponse.ok) {
-          const availableData = (await availableResponse.json()) as { projects: ProjectSummary[] };
+          const availableData = (await availableResponse.json()) as {
+            projects: ProjectSummary[];
+            unavailableReason?: string;
+          };
           availableLoaded = availableData.projects ?? [];
+          availableReason = availableData.unavailableReason ?? null;
         }
       }
 
@@ -123,6 +132,7 @@ export function ProjectWorkspace({
       setAvailableProjects((prev) =>
         JSON.stringify(prev) === JSON.stringify(availableLoaded) ? prev : availableLoaded,
       );
+      setAvailableUnavailableReason((prev) => (prev === availableReason ? prev : availableReason));
 
       // Keep selection if it exists in any loaded list (e.g. builder viewing an open project).
       setSelectedProjectId((current) => {
@@ -235,17 +245,21 @@ export function ProjectWorkspace({
     [loadProjects],
   );
 
-  const activeProjects = projects.filter(
-    (project) => project.status !== "COMPLETED" && project.status !== "CANCELLED",
-  );
   const archivedProjects = projects.filter((project) => project.status === "CANCELLED");
   const visibleProjects = projects.filter((project) => project.status !== "CANCELLED");
-  const atCapacity =
-    role === "BUILDER" && activeProjects.length >= BUILDER_PROJECT_LIMIT;
+  const acceptedActiveProjects = projects.filter((project) => project.status === "ACTIVE");
+  const atAcceptedLimit =
+    role === "BUILDER" && acceptedActiveProjects.length >= BUILDER_PROJECT_LIMIT;
+
+  useEffect(() => {
+    if (atAcceptedLimit && view === "available") {
+      setView("mine");
+    }
+  }, [atAcceptedLimit, view]);
 
   const handleCreateProject = async () => {
-    const title = window.prompt("Project title");
-    if (!title?.trim()) return;
+    const title = newProjectTitle.trim();
+    if (!title) return;
 
     setIsCreating(true);
     setError(null);
@@ -255,7 +269,7 @@ export function ProjectWorkspace({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: title.trim(),
+          title,
           clientId: userId,
           totalEscrow,
           milestones: buildMilestones(totalEscrow),
@@ -269,6 +283,8 @@ export function ProjectWorkspace({
 
       const data = (await response.json()) as { project: ProjectSummary };
       setProjects((current) => [data.project, ...current]);
+      setNewProjectTitle("");
+      setIsCreateFormOpen(false);
       selectProject(data.project.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create project");
@@ -318,8 +334,8 @@ export function ProjectWorkspace({
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">Project Plans</h2>
             <div className="flex items-center gap-1">
-              {role === "CLIENT" ? (
-                <Button size="sm" onClick={handleCreateProject} disabled={isCreating}>
+              {role === "CLIENT" && !isCreateFormOpen ? (
+                <Button size="sm" onClick={() => setIsCreateFormOpen(true)} disabled={isCreating}>
                   New
                 </Button>
               ) : null}
@@ -337,12 +353,70 @@ export function ProjectWorkspace({
             </div>
           </div>
 
+          {role === "CLIENT" && isCreateFormOpen ? (
+            <Card>
+              <CardContent className="space-y-2 p-3 pb-4">
+                <label className="flex flex-col gap-1 text-sm font-medium" htmlFor="new-project-title">
+                  Project name
+                </label>
+                <Input
+                  id="new-project-title"
+                  value={newProjectTitle}
+                  onChange={(event) => setNewProjectTitle(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void handleCreateProject();
+                    }
+                    if (event.key === "Escape") {
+                      setIsCreateFormOpen(false);
+                      setNewProjectTitle("");
+                    }
+                  }}
+                  placeholder="e.g. Marketing website"
+                  autoFocus
+                  disabled={isCreating}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setIsCreateFormOpen(false);
+                      setNewProjectTitle("");
+                    }}
+                    disabled={isCreating}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => void handleCreateProject()}
+                    disabled={isCreating || !newProjectTitle.trim()}
+                  >
+                    {isCreating ? "Creating..." : "Create"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {role === "BUILDER" ? (
             <div className="flex gap-2">
               <Button size="sm" variant={view === "mine" ? "default" : "outline"} onClick={() => setView("mine")}>
                 My Projects
               </Button>
-              <Button size="sm" variant={view === "available" ? "default" : "outline"} onClick={() => setView("available")}>
+              <Button
+                size="sm"
+                variant={view === "available" ? "default" : "outline"}
+                onClick={() => setView("available")}
+                disabled={atAcceptedLimit}
+                title={
+                  atAcceptedLimit
+                    ? "You have 3 accepted active projects and cannot take on new project plans."
+                    : undefined
+                }
+              >
                 Open for offers
               </Button>
             </div>
@@ -350,8 +424,8 @@ export function ProjectWorkspace({
 
           {role === "BUILDER" ? (
             <p className="text-xs text-muted-foreground">
-              {activeProjects.length}/{BUILDER_PROJECT_LIMIT} active projects
-              {atCapacity ? " (limit reached)" : ""}
+              {acceptedActiveProjects.length}/{BUILDER_PROJECT_LIMIT} accepted active projects
+              {atAcceptedLimit ? " (limit reached)" : ""}
             </p>
           ) : null}
 
@@ -359,10 +433,17 @@ export function ProjectWorkspace({
 
           <div className="space-y-2">
             {view === "available" && role === "BUILDER" ? (
-              availableProjects.length === 0 ? (
+              availableUnavailableReason === "AT_CAPACITY" || atAcceptedLimit ? (
                 <Card>
                   <CardContent className="p-4 text-sm text-muted-foreground">
-                    No projects open for offers.
+                    You’ve reached the limit of {BUILDER_PROJECT_LIMIT} accepted active projects, so you
+                    can’t see or take on new project plans right now.
+                  </CardContent>
+                </Card>
+              ) : availableProjects.length === 0 ? (
+                <Card>
+                  <CardContent className="p-4 text-sm text-muted-foreground">
+                    No projects open for offers right now.
                   </CardContent>
                 </Card>
               ) : (
@@ -486,6 +567,7 @@ export function ProjectWorkspace({
             role={role}
             name={name}
             probationary={probationary}
+            builderAtCapacity={atAcceptedLimit}
             onProjectStatusChange={handleProjectStatusChange}
             onClose={closeProject}
           />
