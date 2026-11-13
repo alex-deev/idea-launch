@@ -572,6 +572,26 @@ export function initializeSocket(httpServer: HttpServer) {
 
         const result = await releaseMilestone(data.milestoneId);
 
+        if (!result.alreadyReleased) {
+          const isReleased =
+            result.milestone.status === "RELEASED" ||
+            result.milestone.status === "COMPLETED";
+          const content = isReleased
+            ? `${result.milestone.title} approved and released.`
+            : result.payment
+              ? `${result.milestone.title} approved; transfer pending.`
+              : `${result.milestone.title} approved.`;
+          const sys = await prisma.message.create({
+            data: {
+              projectId: result.milestone.projectId,
+              senderId: actorId,
+              type: "SYSTEM" as any,
+              content,
+            },
+          });
+          io.to(result.milestone.projectId).emit("new_message", sys);
+        }
+
         io.to(result.milestone.projectId).emit("milestone_updated", {
           milestone: result.milestone,
         });

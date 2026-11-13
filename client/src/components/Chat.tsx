@@ -132,18 +132,17 @@ export function Chat({
       },
     );
 
-    socket.on("milestone_updated", (data: { milestone?: { id?: string; title?: string } }) => {
+    socket.on("milestone_updated", (data: { milestone?: any }) => {
       const milestone = data?.milestone;
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `system-${Date.now()}`,
-          projectId,
-          type: "SYSTEM",
-          content: `Milestone ${milestone?.title ?? milestone?.id ?? ""} updated`,
-          senderId: null,
-        },
-      ]);
+      if (!milestone?.id) return;
+      setProject((prev: any) => {
+        if (!prev?.milestones) return prev;
+        const idx = prev.milestones.findIndex((m: any) => m.id === milestone.id);
+        if (idx === -1) return prev;
+        const next = [...prev.milestones];
+        next[idx] = { ...next[idx], ...milestone };
+        return { ...prev, milestones: next };
+      });
     });
 
     return () => {

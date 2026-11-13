@@ -21,7 +21,7 @@
 ### 9.3 `Chat.tsx` / project view
 - Connects via Socket.io with `auth: { userId }`; uses `API_URL`/`SOCKET_URL` from `client/src/lib/api.ts`.
 - Emits `join_project` on selection; subscribes to `new_message`, `project_updated`, `milestone_updated`, and `offers_updated`.
-- Replays message history and current offer/selection state on join.
+- Replays message history and current offer/selection state on join. `milestone_updated` is treated as milestone/project state sync (merged into local project milestones); user-facing milestone notifications come from persisted `SYSTEM` `new_message` events (not synthesized client-side).
 - **Project header counterparty:** for clients, shows the builder name only after the client selects and/or accepts that builder’s offer (no placeholder before then); for builders, always shows the client/project-owner name (no placeholder fallback).
 - **Composer gating:** hidden during `SCOPING` (intake shown). Pre-funding, the **text composer is enabled only for the client and the selected builder** while an offer is selected/in negotiation/`FINAL` (existing project room, no new thread). When no offer is selected or for other builders, no freeform composer. Composer is available in `ACTIVE` for delivery collaboration.
 - **Composer layout:** the text input and **Send** button always share a single non-wrapping row (input flexes, button is fixed width); the builder-only **Submit Next Demo** action and its deadline text render on their own row above the composer.
