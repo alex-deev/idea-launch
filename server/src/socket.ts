@@ -4,22 +4,19 @@ import { Server, Socket } from "socket.io";
 import { prisma } from "./lib/prisma.js";
 import { buildMilestones, resolveProjectTotal } from "./lib/milestones.js";
 import {
-  buildMilestonesSnapshot,
   isTerminalOfferStatus,
   normalizeOfferTerms,
-  parseLongTermAmountCents,
-  parseLongTermCadence,
-  parseLongTermNotes,
-  parseMilestoneDueDates,
   parseTotalCents,
-  snapshotDeliverables,
+  snapshotBundleSpec,
   snapshotDueDates,
 } from "./lib/offers.js";
 import {
-  defaultDeliverableSpec,
-  inferDeliverableKindFromAppKinds,
-  parseDeliverableSpec,
-  validateDeliverableSubmission,
+  type BundleSpec,
+  bundlePrimaryUrl,
+  bundleSummaryLabel,
+  inferPlatformTargetsFromScope,
+  parseBundleSpec,
+  validateBundleSubmission,
 } from "./lib/deliverables.js";
 import { fundEscrow, releaseMilestone } from "./services/escrow.js";
 import { synthesizeScope } from "./services/synthesis.js";
@@ -114,7 +111,10 @@ async function applyAcceptedOfferTerms(projectId: string, offer: any) {
   const totalCents = offer.totalCents as number;
   const blueprint = buildMilestones(totalCents);
   const dueDates = snapshotDueDates(offer.milestonesSnapshot);
-  const deliverables = snapshotDeliverables(offer.milestonesSnapshot);
+  const bundle = snapshotBundleSpec(offer.milestonesSnapshot);
+  if (!bundle) {
+    throw new Error("Accepted offer is missing a valid deliverable bundle");
+  }
   await prisma.$transaction(async (tx) => {
     await tx.project.update({
       where: { id: projectId },
@@ -133,21 +133,21 @@ async function applyAcceptedOfferTerms(projectId: string, offer: any) {
           amount: b.amount,
           releasePercent: b.releasePercent,
           dueDate: dueDates[i],
-          deliverableSpec: deliverables[i] as any,
+          deliverableSpec: bundle as any,
         },
       });
     }
   });
 }
 
-/** Scope-derived default deliverable kind, used to prefill offer terms. */
-async function projectDefaultDeliverableKind(projectId: string) {
+/** Scope-derived default platform targets, used to prefill offer terms. */
+async function projectDefaultPlatformTargets(projectId: string) {
   const scope = await prisma.message.findFirst({
     where: { projectId, type: "SCOPE_WIDGET" as any },
     orderBy: { createdAt: "desc" },
   });
   const payload = (scope?.payload ?? {}) as JsonRecord;
-  return inferDeliverableKindFromAppKinds(payload.appKinds, payload.appKindOther);
+  return inferPlatformTargetsFromScope(payload.appKinds, payload.appKindOther);
 }
 
 function normalizeScopePayload(payload: unknown, totalCents: number) {
@@ -197,6 +197,10 @@ async function ensureBuilderCapacity(builderId: string, excludeProjectId?: strin
   if (active >= BUILDER_PROJECT_LIMIT) {
     throw new Error(`Builder already has ${BUILDER_PROJECT_LIMIT} active/open projects`);
   }
+}
+
+function offerBundleOrNull(offer: any): BundleSpec | null {
+  return snapshotBundleSpec(offer?.milestonesSnapshot);
 }
 
 export function initializeSocket(httpServer: HttpServer) {
@@ -281,7 +285,9 @@ export function initializeSocket(httpServer: HttpServer) {
                 : project.totalEscrow || undefined;
 
             const appKinds = Array.isArray(data.payload?.appKinds)
-              ? (data.payload.appKinds as unknown[]).filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+              ? (data.payload.appKinds as unknown[]).filter(
+                  (v): v is string => typeof v === "string" && v.trim().length > 0,
+                )
               : [];
             const appKindOther =
               typeof data.payload?.appKindOther === "string" && data.payload.appKindOther.trim()
@@ -401,42 +407,34 @@ export function initializeSocket(httpServer: HttpServer) {
           return;
         }
 
-        const isDemoReviewMilestone = milestone.title === "Initial Demo" || milestone.title === "Final Demo";
+        const isDemoReviewMilestone =
+          milestone.title === "Initial Demo" || milestone.title === "Final Demo";
         const isResubmission = milestone.status === ("CHANGES_REQUESTED" as any);
         const requiresChangeNote = isResubmission || !!milestone.currentDemoMessageId;
         if (isResubmission && !isDemoReviewMilestone) {
-          ack?.({ ok: false, error: "Changes-requested resubmission is only supported for demo milestones" });
+          ack?.({
+            ok: false,
+            error: "Changes-requested resubmission is only supported for demo milestones",
+          });
           return;
         }
 
-        const spec = parseDeliverableSpec((milestone as any).deliverableSpec) ?? null;
-        const legacyDemoUrl =
-          typeof data.demoUrl === "string" && data.demoUrl.trim() ? data.demoUrl.trim() : null;
+        const spec = parseBundleSpec((milestone as any).deliverableSpec);
+        if (!spec) {
+          ack?.({ ok: false, error: "Milestone is missing a valid deliverable contract" });
+          return;
+        }
 
-        // Typed submissions validate against the agreed spec; the legacy demoUrl
-        // path stays accepted (relaxed) so older clients keep working.
-        const validated = data.deliverable
-          ? validateDeliverableSubmission(spec, data.deliverable, {
-              resubmission: requiresChangeNote,
-            })
-          : legacyDemoUrl
-            ? validateDeliverableSubmission(
-                spec,
-                {
-                  title: `${milestone.title} submission`,
-                  accessUrl: legacyDemoUrl,
-                  instructions: data.instructions,
-                  whatChanged: data.whatChanged,
-                },
-                { resubmission: requiresChangeNote, enforceRequired: false },
-              )
-            : ({ ok: false, error: "A demo link or structured deliverable is required" } as const);
+        const validated = validateBundleSubmission(
+          spec,
+          { bundle: data.bundle, whatChanged: data.whatChanged },
+          { resubmission: requiresChangeNote },
+        );
         if (!validated.ok) {
           ack?.({ ok: false, error: validated.error });
           return;
         }
-        const deliverable = validated.value;
-        const resolvedSpec = spec ?? defaultDeliverableSpec("WEB_LINK");
+        const submission = validated.value;
 
         const now = new Date();
         const latePenalty =
@@ -445,7 +443,8 @@ export function initializeSocket(httpServer: HttpServer) {
             : 0;
         const revisionOverdue =
           isResubmission && milestone.revisionRequestedAt
-            ? now.getTime() > new Date(milestone.revisionRequestedAt).getTime() + 24 * 60 * 60 * 1000
+            ? now.getTime() >
+              new Date(milestone.revisionRequestedAt).getTime() + 24 * 60 * 60 * 1000
             : false;
 
         if (latePenalty > 0) {
@@ -459,24 +458,26 @@ export function initializeSocket(httpServer: HttpServer) {
           });
         }
 
+        const primaryUrl = bundlePrimaryUrl(submission);
+        const content = bundleSummaryLabel(spec);
+
         const message = await prisma.message.create({
           data: {
             projectId: data.projectId,
             senderId,
             type: "DEMO_WIDGET" as any,
-            content: deliverable.accessUrl,
+            content,
             payload: {
               milestoneId: data.milestoneId,
-              deliverable,
-              demoUrl: deliverable.accessUrl,
-              accessUrl: deliverable.accessUrl,
+              specVersion: 2,
+              submittedAt: now.toISOString(),
+              bundle: submission,
+              demoUrl: primaryUrl,
+              accessUrl: primaryUrl,
               latePenalty,
               revisionOverdue,
               resubmission: isResubmission,
-              specVersion: 1,
-              submittedAt: now.toISOString(),
-              ...(data.payload ?? {}),
-            },
+            } as any,
           },
           include: { sender: { select: { id: true, name: true, image: true } } },
         });
@@ -484,8 +485,8 @@ export function initializeSocket(httpServer: HttpServer) {
         await prisma.milestone.update({
           where: { id: milestone.id },
           data: {
-            demoUrl: deliverable.accessUrl,
-            deliverableSpec: resolvedSpec as any,
+            demoUrl: primaryUrl,
+            deliverableSpec: spec as any,
             status: "IN_PROGRESS" as any,
             currentDemoMessageId: message.id,
             // Clear review-request state on (re)submission; history remains in messages.
@@ -546,9 +547,13 @@ export function initializeSocket(httpServer: HttpServer) {
           ack?.({ ok: false, error: "Demos can only be reviewed for active projects" });
           return;
         }
-        const isDemoReviewMilestone = milestone.title === "Initial Demo" || milestone.title === "Final Demo";
+        const isDemoReviewMilestone =
+          milestone.title === "Initial Demo" || milestone.title === "Final Demo";
         if (!isDemoReviewMilestone) {
-          ack?.({ ok: false, error: "Demo review is only available for Initial and Final Demo milestones" });
+          ack?.({
+            ok: false,
+            error: "Demo review is only available for Initial and Final Demo milestones",
+          });
           return;
         }
         if (milestone.status === "RELEASED" || milestone.status === "COMPLETED") {
@@ -616,7 +621,8 @@ export function initializeSocket(httpServer: HttpServer) {
           ack?.({ ok: false, error: "Cannot approve a demo while changes are requested" });
           return;
         }
-        const isDemoReviewMilestone = milestoneRow.title === "Initial Demo" || milestoneRow.title === "Final Demo";
+        const isDemoReviewMilestone =
+          milestoneRow.title === "Initial Demo" || milestoneRow.title === "Final Demo";
         if (isDemoReviewMilestone) {
           if (milestoneRow.status !== "IN_PROGRESS" || !milestoneRow.currentDemoMessageId) {
             ack?.({ ok: false, error: "Only the current submitted demo can be approved" });
@@ -725,7 +731,9 @@ export function initializeSocket(httpServer: HttpServer) {
             where: { id: scopeMessage.id },
             data: {
               payload: normalizedPayload as any,
-              content: String((normalizedPayload as any).title ?? scopeMessage.content ?? "Project Scope Blueprint"),
+              content: String(
+                (normalizedPayload as any).title ?? scopeMessage.content ?? "Project Scope Blueprint",
+              ),
             },
           });
           io.to(data.projectId).emit("message_updated", updatedMessage);
@@ -756,7 +764,7 @@ export function initializeSocket(httpServer: HttpServer) {
       }
     });
 
-    // ---- Offer workflow (V2 + V5 + V4-lite) ----
+    // ---- Offer workflow (v2 bundle contract) ----
 
     socket.on("submit_offer", async (data: any, ack?: (response: any) => void) => {
       try {
@@ -801,7 +809,7 @@ export function initializeSocket(httpServer: HttpServer) {
           return;
         }
 
-        const terms = normalizeOfferTerms(
+        const normalized = normalizeOfferTerms(
           totalCents,
           {
             totalCents,
@@ -809,11 +817,17 @@ export function initializeSocket(httpServer: HttpServer) {
             longTermCadence: data.longTermCadence,
             longTermNotes: data.longTermNotes,
             milestoneDueDates: data.milestoneDueDates,
-            milestoneDeliverables: data.milestoneDeliverables,
+            platformTargets: data.platformTargets,
+            slotOverrides: data.slotOverrides,
           },
           undefined,
-          { defaultDeliverableKind: await projectDefaultDeliverableKind(projectId) },
+          { defaultPlatformTargets: await projectDefaultPlatformTargets(projectId) },
         );
+        if (!normalized.ok) {
+          ack?.({ ok: false, error: normalized.error });
+          return;
+        }
+        const terms = normalized.terms;
 
         const offer = await prisma.offer.create({
           data: {
@@ -857,6 +871,7 @@ export function initializeSocket(httpServer: HttpServer) {
           ack?.({ ok: false, error: "Builder identity mismatch" });
           return;
         }
+        const project = await getProject(projectId);
         const offer = await prisma.offer.findUnique({
           where: { projectId_builderId: { projectId, builderId } },
         });
@@ -864,23 +879,38 @@ export function initializeSocket(httpServer: HttpServer) {
           ack?.({ ok: false, error: "Offer not found" });
           return;
         }
-        if (offer.status !== "SUBMITTED") {
-          ack?.({ ok: false, error: "Offer can only be revised while SUBMITTED" });
+        if (offer.status === "FINAL") {
+          ack?.({ ok: false, error: "Final offers cannot be revised; unfinalize first" });
+          return;
+        }
+        const isSelectedUnfinalized =
+          offer.status === "SELECTED" &&
+          !!project &&
+          project.selectedOfferId === offer.id &&
+          project.status === "OPEN_FOR_BIDS";
+        if (offer.status !== "SUBMITTED" && !isSelectedUnfinalized) {
+          ack?.({ ok: false, error: "Offer can only be revised while SUBMITTED or after unfinalizing" });
           return;
         }
 
         const totalCents = parseTotalCents(data.totalCents ?? data.total) ?? offer.totalCents;
-        const terms = normalizeOfferTerms(totalCents, data, offer);
+        const normalized = normalizeOfferTerms(totalCents, data, offer);
+        if (!normalized.ok) {
+          ack?.({ ok: false, error: normalized.error });
+          return;
+        }
+        const terms = normalized.terms;
 
         const updated = await prisma.offer.update({
           where: { id: offer.id },
           data: {
-            status: "SUBMITTED",
+            status: isSelectedUnfinalized ? "SELECTED" : "SUBMITTED",
             totalCents: terms.totalCents,
             milestonesSnapshot: terms.milestonesSnapshot as any,
             longTermAmountCents: terms.longTermAmountCents,
             longTermCadence: terms.longTermCadence,
             longTermNotes: terms.longTermNotes,
+            finalizedAt: null,
           },
           include: offerInclude,
         });
@@ -995,7 +1025,12 @@ export function initializeSocket(httpServer: HttpServer) {
         });
 
         const sys = await prisma.message.create({
-          data: { projectId, senderId: actorId, type: "SYSTEM" as any, content: "Offer selected for negotiation" },
+          data: {
+            projectId,
+            senderId: actorId,
+            type: "SYSTEM" as any,
+            content: "Offer selected for negotiation",
+          },
         });
         io.to(projectId).emit("new_message", sys);
         await emitProjectState(io, projectId);
@@ -1077,7 +1112,11 @@ export function initializeSocket(httpServer: HttpServer) {
           ack?.({ ok: false, error: "Only the selected offer can be negotiated" });
           return;
         }
-        if (offer.status !== "SELECTED" && offer.status !== "FINAL") {
+        if (offer.status === "FINAL") {
+          ack?.({ ok: false, error: "Final offer terms are locked; unfinalize before editing" });
+          return;
+        }
+        if (offer.status !== "SELECTED") {
           ack?.({ ok: false, error: "Offer is not in a negotiable state" });
           return;
         }
@@ -1088,15 +1127,17 @@ export function initializeSocket(httpServer: HttpServer) {
         }
 
         const totalCents = parseTotalCents(data.totalCents ?? data.total) ?? offer.totalCents;
-        const terms = normalizeOfferTerms(totalCents, data, offer);
-
-        // Any term change during negotiation clears FINAL (requires re-finalization).
-        const nextStatus = offer.status === "FINAL" ? "SELECTED" : offer.status;
+        const normalized = normalizeOfferTerms(totalCents, data, offer);
+        if (!normalized.ok) {
+          ack?.({ ok: false, error: normalized.error });
+          return;
+        }
+        const terms = normalized.terms;
 
         const updated = await prisma.offer.update({
           where: { id: offerId },
           data: {
-            status: nextStatus as any,
+            status: "SELECTED",
             totalCents: terms.totalCents,
             milestonesSnapshot: terms.milestonesSnapshot as any,
             longTermAmountCents: terms.longTermAmountCents,
@@ -1148,6 +1189,10 @@ export function initializeSocket(httpServer: HttpServer) {
           ack?.({ ok: false, error: "Offer must be selected/negotiating to mark final" });
           return;
         }
+        if (!offerBundleOrNull(offer)) {
+          ack?.({ ok: false, error: "Offer is missing a complete deliverable bundle and cannot be finalized" });
+          return;
+        }
 
         const updated = await prisma.offer.update({
           where: { id: offerId },
@@ -1156,6 +1201,62 @@ export function initializeSocket(httpServer: HttpServer) {
         });
         const sys = await prisma.message.create({
           data: { projectId, senderId: actorId, type: "SYSTEM" as any, content: "Offer marked final" },
+        });
+        io.to(projectId).emit("new_message", sys);
+        await emitProjectState(io, projectId);
+        ack?.({ ok: true, offer: updated });
+      } catch (error) {
+        ack?.({ ok: false, error: (error as Error).message });
+      }
+    });
+
+    socket.on("unfinalize_offer", async (data: any, ack?: (response: any) => void) => {
+      try {
+        const { projectId, offerId, builderId } = data ?? {};
+        if (!projectId || !offerId) {
+          ack?.({ ok: false, error: "projectId and offerId are required" });
+          return;
+        }
+        const project = await getProject(projectId);
+        if (!project) {
+          ack?.({ ok: false, error: "Project not found" });
+          return;
+        }
+        const actorId = (socket.data.userId ?? builderId ?? null) as string | null;
+        const offer = await prisma.offer.findUnique({ where: { id: offerId } });
+        if (!offer || offer.projectId !== projectId) {
+          ack?.({ ok: false, error: "Offer not found" });
+          return;
+        }
+        if (actorId !== offer.builderId) {
+          ack?.({ ok: false, error: "Only the builder can unfinalize this offer" });
+          return;
+        }
+        if (project.selectedOfferId !== offerId) {
+          ack?.({ ok: false, error: "Only the selected offer can be unfinalized" });
+          return;
+        }
+        if (project.status !== "OPEN_FOR_BIDS" || project.acceptedOfferId) {
+          ack?.({ ok: false, error: "Offer can only be unfinalized before acceptance" });
+          return;
+        }
+        if (offer.status !== "FINAL") {
+          ack?.({ ok: false, error: "Only a final offer can be unfinalized" });
+          return;
+        }
+
+        const updated = await prisma.offer.update({
+          where: { id: offerId },
+          data: { status: "SELECTED", finalizedAt: null },
+          include: offerInclude,
+        });
+        const sys = await prisma.message.create({
+          data: {
+            projectId,
+            senderId: actorId,
+            type: "SYSTEM" as any,
+            content: "Final offer reopened for revision",
+          },
         });
         io.to(projectId).emit("new_message", sys);
         await emitProjectState(io, projectId);
@@ -1215,7 +1316,11 @@ export function initializeSocket(httpServer: HttpServer) {
         await prisma.$transaction(async (tx) => {
           await tx.offer.update({ where: { id: offerId }, data: { status: "ACCEPTED" } });
           await tx.offer.updateMany({
-            where: { projectId, id: { not: offerId }, status: { notIn: ["WITHDRAWN", "REJECTED"] as any } },
+            where: {
+              projectId,
+              id: { not: offerId },
+              status: { notIn: ["WITHDRAWN", "REJECTED"] as any },
+            },
             data: { status: "REJECTED" },
           });
           await tx.project.update({ where: { id: projectId }, data: { selectedOfferId: offerId } });

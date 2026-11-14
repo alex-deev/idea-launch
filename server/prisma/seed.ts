@@ -1,13 +1,14 @@
 import { PrismaClient } from "@prisma/client";
-import { defaultDeliverableSpec, type DeliverableKind } from "../src/lib/deliverables.js";
+import { buildBundleSpec, type PlatformTarget } from "../src/lib/deliverables.js";
 import { hashPassword } from "../src/lib/password.js";
 
 const prisma = new PrismaClient();
 
-function snapshot(totalCents: number, kind: DeliverableKind = "WEB_LINK") {
+function snapshot(totalCents: number, targets: PlatformTarget[] = ["WEB"]) {
   const initial = Math.round((totalCents * 30) / 100);
   const finalDemo = Math.round((totalCents * 40) / 100);
   const deployment = totalCents - initial - finalDemo;
+  const bundle = buildBundleSpec(targets);
   const rows = [
     { stageNumber: 1, title: "Initial Demo", amount: initial, releasePercent: 30 },
     { stageNumber: 2, title: "Final Demo", amount: finalDemo, releasePercent: 40 },
@@ -16,7 +17,7 @@ function snapshot(totalCents: number, kind: DeliverableKind = "WEB_LINK") {
   return rows.map((r) => ({
     ...r,
     dueDate: null as string | null,
-    deliverable: defaultDeliverableSpec(kind),
+    deliverable: bundle,
   }));
 }
 
@@ -61,6 +62,9 @@ async function main() {
     },
   });
 
+  const webBundle = buildBundleSpec(["WEB"]);
+  const mobileBundle = buildBundleSpec(["WEB", "MOBILE_IOS"]);
+
   // 1) SCOPING (client drafting)
   await prisma.project.create({
     data: {
@@ -72,9 +76,9 @@ async function main() {
       clientId: clientUser.id,
       milestones: {
         create: [
-          { id: "milestone-1", stageNumber: 1, title: "Initial Demo", amount: 30000, releasePercent: 30, status: "PLANNED" },
-          { id: "milestone-2", stageNumber: 2, title: "Final Demo", amount: 40000, releasePercent: 40, status: "PLANNED" },
-          { id: "milestone-3", stageNumber: 3, title: "Deployment", amount: 30000, releasePercent: 30, status: "PLANNED" },
+          { id: "milestone-1", stageNumber: 1, title: "Initial Demo", amount: 30000, releasePercent: 30, status: "PLANNED", deliverableSpec: webBundle as any },
+          { id: "milestone-2", stageNumber: 2, title: "Final Demo", amount: 40000, releasePercent: 40, status: "PLANNED", deliverableSpec: webBundle as any },
+          { id: "milestone-3", stageNumber: 3, title: "Deployment", amount: 30000, releasePercent: 30, status: "PLANNED", deliverableSpec: webBundle as any },
         ],
       },
     },
@@ -91,9 +95,9 @@ async function main() {
       clientId: clientUser.id,
       milestones: {
         create: [
-          { id: "milestone-5", stageNumber: 1, title: "Initial Demo", amount: 45000, releasePercent: 30, status: "PLANNED" },
-          { id: "milestone-6", stageNumber: 2, title: "Final Demo", amount: 60000, releasePercent: 40, status: "PLANNED" },
-          { id: "milestone-7", stageNumber: 3, title: "Deployment", amount: 45000, releasePercent: 30, status: "PLANNED" },
+          { id: "milestone-5", stageNumber: 1, title: "Initial Demo", amount: 45000, releasePercent: 30, status: "PLANNED", deliverableSpec: webBundle as any },
+          { id: "milestone-6", stageNumber: 2, title: "Final Demo", amount: 60000, releasePercent: 40, status: "PLANNED", deliverableSpec: webBundle as any },
+          { id: "milestone-7", stageNumber: 3, title: "Deployment", amount: 45000, releasePercent: 30, status: "PLANNED", deliverableSpec: webBundle as any },
         ],
       },
     },
@@ -105,7 +109,7 @@ async function main() {
       builderId: builderUser.id,
       status: "SUBMITTED",
       totalCents: 150000,
-      milestonesSnapshot: snapshot(150000) as any,
+      milestonesSnapshot: snapshot(150000, ["WEB"]) as any,
       longTermAmountCents: 5000,
       longTermCadence: "MONTHLY",
       longTermNotes: "Monthly maintenance & minor fixes (informational).",
@@ -117,14 +121,14 @@ async function main() {
       builderId: builderTwo.id,
       status: "SUBMITTED",
       totalCents: 140000,
-      milestonesSnapshot: snapshot(140000) as any,
+      milestonesSnapshot: snapshot(140000, ["WEB", "MOBILE_ANDROID"]) as any,
       longTermAmountCents: null,
       longTermCadence: "NONE",
       longTermNotes: null,
     },
   });
 
-  // 3) ACTIVE project with accepted offer (builder assigned)
+  // 3) ACTIVE project with accepted multi-target offer (builder assigned)
   const activeProject = await prisma.project.create({
     data: {
       id: "project-789",
@@ -136,9 +140,9 @@ async function main() {
       builderId: builderUser.id,
       milestones: {
         create: [
-          { id: "milestone-9", stageNumber: 1, title: "Initial Demo", amount: 24000, releasePercent: 30, status: "IN_PROGRESS", deliverableSpec: defaultDeliverableSpec("MOBILE_BUILD") as any },
-          { id: "milestone-10", stageNumber: 2, title: "Final Demo", amount: 32000, releasePercent: 40, status: "PLANNED", deliverableSpec: defaultDeliverableSpec("MOBILE_BUILD") as any },
-          { id: "milestone-11", stageNumber: 3, title: "Deployment", amount: 24000, releasePercent: 30, status: "PLANNED", deliverableSpec: defaultDeliverableSpec("MOBILE_BUILD") as any },
+          { id: "milestone-9", stageNumber: 1, title: "Initial Demo", amount: 24000, releasePercent: 30, status: "IN_PROGRESS", deliverableSpec: mobileBundle as any },
+          { id: "milestone-10", stageNumber: 2, title: "Final Demo", amount: 32000, releasePercent: 40, status: "PLANNED", deliverableSpec: mobileBundle as any },
+          { id: "milestone-11", stageNumber: 3, title: "Deployment", amount: 24000, releasePercent: 30, status: "PLANNED", deliverableSpec: mobileBundle as any },
         ],
       },
     },
@@ -150,7 +154,7 @@ async function main() {
       builderId: builderUser.id,
       status: "ACCEPTED",
       totalCents: 80000,
-      milestonesSnapshot: snapshot(80000, "MOBILE_BUILD") as any,
+      milestonesSnapshot: snapshot(80000, ["WEB", "MOBILE_IOS"]) as any,
       longTermAmountCents: 3000,
       longTermCadence: "MONTHLY",
       longTermNotes: "Basic support (informational).",
@@ -173,9 +177,9 @@ async function main() {
       clientId: clientUser.id,
       milestones: {
         create: [
-          { id: "milestone-13", stageNumber: 1, title: "Initial Demo", amount: 18000, releasePercent: 30, status: "PLANNED" },
-          { id: "milestone-14", stageNumber: 2, title: "Final Demo", amount: 24000, releasePercent: 40, status: "PLANNED" },
-          { id: "milestone-15", stageNumber: 3, title: "Deployment", amount: 18000, releasePercent: 30, status: "PLANNED" },
+          { id: "milestone-13", stageNumber: 1, title: "Initial Demo", amount: 18000, releasePercent: 30, status: "PLANNED", deliverableSpec: webBundle as any },
+          { id: "milestone-14", stageNumber: 2, title: "Final Demo", amount: 24000, releasePercent: 40, status: "PLANNED", deliverableSpec: webBundle as any },
+          { id: "milestone-15", stageNumber: 3, title: "Deployment", amount: 18000, releasePercent: 30, status: "PLANNED", deliverableSpec: webBundle as any },
         ],
       },
     },

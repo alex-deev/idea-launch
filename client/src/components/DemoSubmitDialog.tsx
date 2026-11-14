@@ -6,37 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  DELIVERABLE_FIELD_LABELS,
-  DELIVERABLE_KIND_HINTS,
-  DELIVERABLE_KIND_LABELS,
-  OS_LABELS,
-  PLATFORM_LABELS,
-  type DeliverableDraft,
-  type DeliverableSpec,
-  requiredFieldsForSpec,
-  toDeliverablePayload,
-  validateDeliverableDraft,
+  PLATFORM_TARGET_LABELS,
+  TARGET_DESCRIPTIONS,
+  TARGET_MATRIX,
+  type BundleDraft,
+  type BundleSpec,
+  type BundleSubmissionPayload,
+  type SlotDraft,
+  parseBundleSpec,
+  toBundleSubmissionPayload,
+  validateBundleDraft,
 } from "@/lib/deliverables";
-
-export interface DemoSubmissionDeliverable {
-  kind?: string;
-  title?: string;
-  accessUrl?: string;
-  instructions?: string;
-  version?: string;
-  platform?: string;
-  os?: string;
-  credentials?: string;
-  label?: string;
-  summary?: string;
-  whatChanged?: string;
-}
-
-export interface DemoSubmissionPayload {
-  milestoneId?: string;
-  deliverable?: DemoSubmissionDeliverable | null;
-  demoUrl?: string | null;
-}
 
 interface DemoSubmitDialogProps {
   open: boolean;
@@ -49,13 +29,10 @@ interface DemoSubmitDialogProps {
     revisionRequestedAt?: string | null;
     currentDemoMessageId?: string | null;
     demoUrl?: string | null;
-    deliverableSpec?: DeliverableSpec | null;
+    deliverableSpec?: unknown;
   };
-  currentSubmission?: DemoSubmissionPayload | null;
-  onSubmit: (deliverable: ReturnType<typeof toDeliverablePayload>) => Promise<{
-    ok: boolean;
-    error?: string;
-  }>;
+  currentSubmission?: any | null;
+  onSubmit: (payload: BundleSubmissionPayload) => Promise<{ ok: boolean; error?: string }>;
   onClose: () => void;
 }
 
@@ -74,6 +51,27 @@ function formatSpan(diffMs: number) {
   return parts.join(" ") || "<1h";
 }
 
+function prefillDraft(spec: BundleSpec, milestoneTitle: string, currentSubmission: any): BundleDraft {
+  const existingSlots: any[] = Array.isArray(currentSubmission?.bundle?.slots)
+    ? currentSubmission.bundle.slots
+    : [];
+  const slots: SlotDraft[] = spec.targets.map((target, i) => {
+    const found =
+      existingSlots.find((s) => s?.target === target) ?? existingSlots[i] ?? null;
+    const d = found?.deliverable ?? found ?? {};
+    return {
+      target,
+      title: typeof d.title === "string" && d.title ? d.title : `${milestoneTitle} — ${PLATFORM_TARGET_LABELS[target]}`,
+      accessUrl: typeof d.accessUrl === "string" ? d.accessUrl : "",
+      instructions: typeof d.instructions === "string" ? d.instructions : "",
+      version: typeof d.version === "string" ? d.version : "",
+      credentials: typeof d.credentials === "string" ? d.credentials : "",
+      summary: typeof d.summary === "string" ? d.summary : "",
+    };
+  });
+  return { slots, whatChanged: "" };
+}
+
 export function DemoSubmitDialog({
   open,
   projectId,
@@ -82,38 +80,20 @@ export function DemoSubmitDialog({
   onSubmit,
   onClose,
 }: DemoSubmitDialogProps) {
-  const spec = milestone.deliverableSpec ?? null;
-  const kind = spec?.kind ?? "WEB_LINK";
-  const existing = currentSubmission?.deliverable ?? null;
+  const spec = useMemo(() => parseBundleSpec(milestone.deliverableSpec), [milestone.deliverableSpec]);
   const isResubmission =
     milestone.status === "CHANGES_REQUESTED" || !!milestone.currentDemoMessageId;
+  const milestoneTitle = milestone.title ?? "Milestone";
 
-  const initialAccessUrl =
-    existing?.accessUrl ?? currentSubmission?.demoUrl ?? milestone.demoUrl ?? "";
-
-  const [draft, setDraft] = useState<DeliverableDraft>(() => ({
-    kind,
-    title: existing?.title ?? `${milestone.title ?? "Milestone"} submission`,
-    accessUrl: initialAccessUrl,
-    instructions: existing?.instructions ?? "",
-    version: existing?.version ?? "",
-    platform: (existing?.platform as DeliverableDraft["platform"]) ?? "",
-    os: (existing?.os as DeliverableDraft["os"]) ?? "",
-    credentials: existing?.credentials ?? "",
-    label: existing?.label ?? spec?.label ?? "",
-    summary: existing?.summary ?? "",
-    whatChanged: "",
-  }));
+  const [active, setActive] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [now] = useState(() => Date.now());
+  const [draft, setDraft] = useState<BundleDraft>(() =>
+    spec ? prefillDraft(spec, milestoneTitle, currentSubmission) : { slots: [], whatChanged: "" },
+  );
 
-  const required = useMemo(() => new Set(requiredFieldsForSpec({ ...spec, kind })), [spec, kind]);
-
-  if (!open) return null;
-
-  const set = <K extends keyof DeliverableDraft>(key: K, value: DeliverableDraft[K]) =>
-    setDraft((prev) => ({ ...prev, [key]: value }));
+  if (!open || !spec) return null;
 
   const revisionTiming = (() => {
     if (!milestone.revisionRequestedAt) return null;
@@ -123,8 +103,16 @@ export function DemoSubmitDialog({
     return diffMs < 0 ? `overdue by ${formatSpan(diffMs)}` : `due in ${formatSpan(diffMs)}`;
   })();
 
+  const setSlot = (index: number, patch: Partial<SlotDraft>) => {
+    setDraft((prev) => {
+      const slots = [...prev.slots];
+      slots[index] = { ...slots[index], ...patch };
+      return { ...prev, slots };
+    });
+  };
+
   const handleSubmit = async () => {
-    const message = validateDeliverableDraft(spec, draft, { resubmission: isResubmission });
+    const message = validateBundleDraft(spec, draft, { resubmission: isResubmission });
     if (message) {
       setError(message);
       return;
@@ -132,7 +120,8 @@ export function DemoSubmitDialog({
     setError(null);
     setSubmitting(true);
     try {
-      const result = await onSubmit(toDeliverablePayload(draft));
+      const payload = toBundleSubmissionPayload(draft);
+      const result = await onSubmit(payload);
       if (!result.ok) {
         setError(result.error || "Submission failed");
         return;
@@ -143,25 +132,24 @@ export function DemoSubmitDialog({
     }
   };
 
-  const fieldLabel = (field: keyof typeof DELIVERABLE_FIELD_LABELS) => {
-    const label = DELIVERABLE_FIELD_LABELS[field];
-    return required.has(field) ? `${label} *` : label;
-  };
+  const currentSlot = draft.slots[active];
+  const currentTarget = spec.targets[active];
+  const pinned = currentTarget ? TARGET_MATRIX[currentTarget] : null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label={`Submit ${milestone.title ?? "milestone"}`}
+      aria-label={`Submit ${milestoneTitle}`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <Card className="max-h-[90vh] w-full max-w-lg overflow-y-auto">
+      <Card className="max-h-[90vh] w-full max-w-2xl overflow-y-auto">
         <CardHeader className="sticky top-0 z-10 flex-row items-center justify-between gap-2 bg-card pb-2">
           <CardTitle className="text-base">
-            {isResubmission ? "Resubmit" : "Submit"} {milestone.title ?? "milestone"}
+            {isResubmission ? "Resubmit" : "Submit"} {milestoneTitle}
           </CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close submission form">
             <X className="h-4 w-4" />
@@ -170,11 +158,11 @@ export function DemoSubmitDialog({
         <CardContent className="space-y-3 text-sm">
           <div className="rounded-md border bg-muted/30 p-2">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">{DELIVERABLE_KIND_LABELS[kind]}</Badge>
-              <span className="text-xs text-muted-foreground">Agreed in the offer terms</span>
+              <Badge variant="outline">Agreed contract</Badge>
+              <span className="text-xs text-muted-foreground">
+                Submit a deliverable for each required target (targets are locked by the offer).
+              </span>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">{DELIVERABLE_KIND_HINTS[kind]}</p>
-            {spec?.notes ? <p className="mt-1 text-xs">{spec.notes}</p> : null}
           </div>
 
           {milestone.status === "CHANGES_REQUESTED" ? (
@@ -182,134 +170,118 @@ export function DemoSubmitDialog({
               <p className="font-medium text-destructive">Changes requested</p>
               {milestone.revisionReason ? <p>{milestone.revisionReason}</p> : null}
               {revisionTiming ? (
-                <p className="text-xs text-muted-foreground">
-                  Update target: {revisionTiming} (soft 24h)
-                </p>
+                <p className="text-xs text-muted-foreground">Update target: {revisionTiming} (soft 24h)</p>
               ) : null}
+              <p className="text-xs text-muted-foreground">
+                Call out which target(s) you addressed and how to verify each fix.
+              </p>
             </div>
           ) : null}
 
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Submission title *</span>
-            <Input
-              value={draft.title}
-              onChange={(event) => set("title", event.target.value)}
-              placeholder="e.g. Checkout flow preview"
-            />
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">{fieldLabel("ACCESS_URL")}</span>
-            <Input
-              value={draft.accessUrl}
-              onChange={(event) => set("accessUrl", event.target.value)}
-              placeholder="https://…"
-              inputMode="url"
-            />
-          </label>
-
-          {kind === "MOBILE_BUILD" ? (
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">{fieldLabel("PLATFORM")}</span>
-              <select
-                className="h-9 rounded-md border bg-background px-2 text-sm"
-                value={draft.platform}
-                onChange={(event) =>
-                  set("platform", event.target.value as DeliverableDraft["platform"])
-                }
-              >
-                <option value="">Select platform…</option>
-                {(Object.keys(PLATFORM_LABELS) as Array<keyof typeof PLATFORM_LABELS>).map((key) => (
-                  <option key={key} value={key}>
-                    {PLATFORM_LABELS[key]}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {spec.targets.length > 1 ? (
+            <div className="flex flex-wrap gap-1 border-b pb-2">
+              {spec.targets.map((target, i) => (
+                <button
+                  key={target}
+                  type="button"
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+                    i === active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground hover:bg-muted/80"
+                  }`}
+                  onClick={() => setActive(i)}
+                >
+                  {PLATFORM_TARGET_LABELS[target]}
+                </button>
+              ))}
+            </div>
           ) : null}
 
-          {kind === "DESKTOP_BUILD" ? (
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">{fieldLabel("OS")}</span>
-              <select
-                className="h-9 rounded-md border bg-background px-2 text-sm"
-                value={draft.os}
-                onChange={(event) => set("os", event.target.value as DeliverableDraft["os"])}
-              >
-                <option value="">Select operating system…</option>
-                {(Object.keys(OS_LABELS) as Array<keyof typeof OS_LABELS>).map((key) => (
-                  <option key={key} value={key}>
-                    {OS_LABELS[key]}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {currentSlot && currentTarget ? (
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="font-medium">{PLATFORM_TARGET_LABELS[currentTarget]}</p>
+                  <p className="text-xs text-muted-foreground">{TARGET_DESCRIPTIONS[currentTarget]}</p>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  <Badge variant="secondary">{pinned?.kind === "WEB_LINK" ? "Web link" : pinned?.kind === "MOBILE_BUILD" ? "Mobile build" : "Desktop build"}</Badge>
+                  {pinned?.platform ? <Badge variant="outline">{pinned.platform}</Badge> : null}
+                  {pinned?.os ? <Badge variant="outline">{pinned.os}</Badge> : null}
+                </div>
+              </div>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Submission title *</span>
+                <Input
+                  value={currentSlot.title}
+                  onChange={(e) => setSlot(active, { title: e.target.value })}
+                  placeholder={`${PLATFORM_TARGET_LABELS[currentTarget]} submission`}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Access / download link *</span>
+                <Input
+                  value={currentSlot.accessUrl}
+                  onChange={(e) => setSlot(active, { accessUrl: e.target.value })}
+                  placeholder="https://…"
+                  inputMode="url"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Access / install / review instructions *</span>
+                <textarea
+                  className={textareaClass}
+                  value={currentSlot.instructions}
+                  onChange={(e) => setSlot(active, { instructions: e.target.value })}
+                  placeholder="How to access, install, or review this deliverable…"
+                />
+              </label>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Version / build (optional)</span>
+                  <Input
+                    value={currentSlot.version}
+                    onChange={(e) => setSlot(active, { version: e.target.value })}
+                    placeholder="e.g. 0.3.1"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Credentials (optional)</span>
+                  <Input
+                    value={currentSlot.credentials}
+                    onChange={(e) => setSlot(active, { credentials: e.target.value })}
+                    placeholder="Only if access is gated"
+                  />
+                </label>
+              </div>
+              {currentSlot.credentials.trim() ? (
+                <p className="text-xs text-amber-600">
+                  Credentials are visible to everyone in this project chat. Avoid reusable personal passwords.
+                </p>
+              ) : null}
+
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Summary (optional)</span>
+                <textarea
+                  className={textareaClass}
+                  value={currentSlot.summary}
+                  onChange={(e) => setSlot(active, { summary: e.target.value })}
+                  placeholder="What should the client focus on for this target?"
+                />
+              </label>
+            </div>
           ) : null}
-
-          {kind === "OTHER" ? (
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">{fieldLabel("LABEL")}</span>
-              <Input
-                value={draft.label}
-                onChange={(event) => set("label", event.target.value)}
-                placeholder="e.g. Firmware image"
-              />
-            </label>
-          ) : null}
-
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">{fieldLabel("INSTRUCTIONS")}</span>
-            <textarea
-              className={textareaClass}
-              value={draft.instructions}
-              onChange={(event) => set("instructions", event.target.value)}
-              placeholder="How to access, install, or review this deliverable…"
-            />
-          </label>
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">{fieldLabel("VERSION")}</span>
-              <Input
-                value={draft.version}
-                onChange={(event) => set("version", event.target.value)}
-                placeholder="Optional (e.g. 0.3.1)"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">{fieldLabel("CREDENTIALS")}</span>
-              <Input
-                value={draft.credentials}
-                onChange={(event) => set("credentials", event.target.value)}
-                placeholder="Only if access is gated"
-              />
-            </label>
-          </div>
-          {draft.credentials.trim() ? (
-            <p className="text-xs text-amber-600">
-              Credentials are visible to everyone in this project chat. Avoid reusable personal
-              passwords.
-            </p>
-          ) : null}
-
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">{fieldLabel("SUMMARY")}</span>
-            <textarea
-              className={textareaClass}
-              value={draft.summary}
-              onChange={(event) => set("summary", event.target.value)}
-              placeholder="What should the client focus on? (optional)"
-            />
-          </label>
 
           {isResubmission ? (
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">What changed / how to verify *</span>
+              <span className="text-xs text-muted-foreground">What changed / how to verify (bundle) *</span>
               <textarea
                 className={textareaClass}
                 value={draft.whatChanged}
-                onChange={(event) => set("whatChanged", event.target.value)}
-                placeholder="Address the requested changes and say how to verify them…"
+                onChange={(e) => setDraft((prev) => ({ ...prev, whatChanged: e.target.value }))}
+                placeholder="Describe what changed per target and how the client can verify each fix…"
               />
             </label>
           ) : null}
@@ -318,7 +290,7 @@ export function DemoSubmitDialog({
 
           <div className="flex gap-2 pt-1">
             <Button className="flex-1" onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "Submitting…" : isResubmission ? "Resubmit" : "Submit"}
+              {submitting ? "Submitting…" : isResubmission ? "Resubmit bundle" : "Submit bundle"}
             </Button>
             <Button className="flex-1" variant="outline" onClick={onClose} disabled={submitting}>
               Cancel

@@ -3,14 +3,14 @@ import type { ChangeEvent, KeyboardEvent } from "react";
 import { io, type Socket } from "socket.io-client";
 
 import { ArrowDown, FileText, MoreVertical, X } from "lucide-react";
-import { inferDeliverableKindFromAppKinds } from "@/lib/deliverables";
+import { inferPlatformTargetsFromScope } from "@/lib/deliverables";
 import { buildMilestones, sumMilestoneAmounts } from "@/lib/milestones";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DemoWidget } from "@/components/DemoWidget";
-import { DemoSubmitDialog, type DemoSubmissionPayload } from "@/components/DemoSubmitDialog";
+import { DemoSubmitDialog } from "@/components/DemoSubmitDialog";
 import { OffersPanel, type OfferRecord } from "@/components/OfferWidget";
 import { ProjectControls } from "@/components/ProjectControls";
 import { ScopeIntakeForm } from "@/components/ScopeIntakeForm";
@@ -30,9 +30,11 @@ interface ChatMessage {
 
 interface DemoPayload {
   milestoneId?: string;
+  specVersion?: number;
+  bundle?: unknown;
+  whatChanged?: string;
   demoUrl?: string | null;
   accessUrl?: string | null;
-  deliverable?: DemoSubmissionPayload["deliverable"];
 }
 
 interface ScopePayload {
@@ -105,6 +107,13 @@ export function Chat({
 
     socket.on("new_message", (message: ChatMessage) => {
       setMessages((prev) => [...prev, message]);
+      if (
+        offersPanelOpenRef.current &&
+        showOffersBarRef.current &&
+        message.senderId !== userId
+      ) {
+        setUnreadWhileOffersOpen((c) => c + 1);
+      }
     });
 
     socket.on("message_history", (data: { messages?: ChatMessage[] }) => {
@@ -221,7 +230,10 @@ export function Chat({
 
   const [offersPanelOpen, setOffersPanelOpen] = useState(false);
   const [headerTermsOpen, setHeaderTermsOpen] = useState(false);
+  const [unreadWhileOffersOpen, setUnreadWhileOffersOpen] = useState(0);
   const offersAutoKeyRef = useRef<string | null>(null);
+  const offersPanelOpenRef = useRef(false);
+  const showOffersBarRef = useRef(false);
 
   const offersActionNeeded =
     projectStatus === "OPEN_FOR_BIDS" &&
@@ -234,6 +246,7 @@ export function Chat({
   useEffect(() => {
     if (!showOffersBar) {
       setOffersPanelOpen(false);
+      setUnreadWhileOffersOpen(0);
       offersAutoKeyRef.current = null;
       return;
     }
@@ -243,6 +256,18 @@ export function Chat({
     }
     offersAutoKeyRef.current = key;
   }, [showOffersBar, projectId, projectStatus, offersActionNeeded]);
+
+  useEffect(() => {
+    offersPanelOpenRef.current = offersPanelOpen;
+    showOffersBarRef.current = showOffersBar;
+    if (!offersPanelOpen || !showOffersBar) {
+      setUnreadWhileOffersOpen(0);
+    }
+  }, [offersPanelOpen, showOffersBar]);
+
+  useEffect(() => {
+    setUnreadWhileOffersOpen(0);
+  }, [projectId]);
 
   useEffect(() => {
     if (!showHeaderTermsButton) setHeaderTermsOpen(false);
@@ -392,6 +417,12 @@ export function Chat({
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   };
 
+  const jumpToLatestFromOffers = () => {
+    setOffersPanelOpen(false);
+    setUnreadWhileOffersOpen(0);
+    setTimeout(() => scrollToBottom(), 0);
+  };
+
   const fmtCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
   const headerTermsData = (() => {
     if (!showHeaderTermsButton) return null;
@@ -431,7 +462,10 @@ export function Chat({
 
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-border/60">
-      <Card size="sm" className="flex min-h-0 flex-1 flex-col gap-0 overflow-visible ring-0 py-0">
+      <Card
+        size="sm"
+        className="relative flex min-h-0 flex-1 flex-col gap-0 overflow-visible ring-0 py-0"
+      >
         <CardHeader className="shrink-0 !flex items-center justify-between border-b border-border/60 pt-2">
           <div className="flex w-full items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
@@ -486,15 +520,23 @@ export function Chat({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="relative flex flex-1 flex-col gap-0 overflow-visible">
+        <CardContent
+          className={`relative flex min-h-0 flex-1 flex-col gap-0 ${
+            showOffersBar ? "overflow-visible" : "overflow-hidden"
+          }`}
+        >
           {showIntakeForm ? (
-            <div className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto p-4">
-              <ScopeIntakeForm
-                projectId={projectId}
-                userId={userId}
-                socket={socketRef.current}
-                projectTotal={project?.totalEscrow ?? 0}
-              />
+            <div className="relative min-h-0 flex-1">
+              <div className="absolute inset-0 overflow-y-auto p-4">
+                <div className="mx-auto flex min-h-full w-full max-w-xl items-start justify-center">
+                  <ScopeIntakeForm
+                    projectId={projectId}
+                    userId={userId}
+                    socket={socketRef.current}
+                    projectTotal={project?.totalEscrow ?? 0}
+                  />
+                </div>
+              </div>
             </div>
           ) : (
             <div className="relative min-h-0 flex-1">
@@ -520,7 +562,6 @@ export function Chat({
                           role={role}
                           messageId={message.id}
                           milestoneId={milestoneId}
-                          demoUrl={payload.demoUrl ?? payload.accessUrl}
                           payload={payload}
                           milestone={milestone}
                         />
@@ -598,30 +639,33 @@ export function Chat({
             <OffersPanel
               open={offersPanelOpen}
               onToggle={() => setOffersPanelOpen((v) => !v)}
+              unreadCount={unreadWhileOffersOpen}
+              onJumpToLatest={jumpToLatestFromOffers}
               role={role}
-              userId={userId}
-              projectId={projectId}
-              projectStatus={projectStatus}
-              selectedOfferId={selectedOfferId}
-              offers={offers}
-              probationary={probationary}
-              builderAtCapacity={builderAtCapacity}
-              defaultTotalCents={scopeTotalCents || project?.totalEscrow || 100000}
-              defaultDeliverableKind={inferDeliverableKindFromAppKinds(
-                latestScopePayload?.appKinds,
-                latestScopePayload?.appKindOther,
-              )}
-              onSubmitOffer={(terms) => emitAck("submit_offer", { projectId, builderId: userId, ...terms })}
-              onReviseOffer={(terms) => emitAck("revise_offer", { projectId, builderId: userId, ...terms })}
-              onWithdrawOffer={() => emitAck("withdraw_offer", { projectId, builderId: userId })}
-              onSelectOffer={(offerId) => emitAck("select_offer", { projectId, offerId, clientId: userId })}
-              onCancelNegotiation={() => emitAck("cancel_negotiation", { projectId, clientId: userId })}
-              onUpdateOfferTerms={(offerId, terms) =>
-                emitAck("update_offer_terms", { projectId, offerId, actorId: userId, ...terms })
-              }
-              onMarkOfferFinal={(offerId) => emitAck("mark_offer_final", { projectId, offerId, builderId: userId })}
-              onAcceptOffer={(offerId) => emitAck("accept_offer", { projectId, offerId, clientId: userId })}
-            />
+                  userId={userId}
+                  projectId={projectId}
+                  projectStatus={projectStatus}
+                  selectedOfferId={selectedOfferId}
+                  offers={offers}
+                  probationary={probationary}
+                  builderAtCapacity={builderAtCapacity}
+                  defaultTotalCents={scopeTotalCents || project?.totalEscrow || 100000}
+                  defaultPlatformTargets={inferPlatformTargetsFromScope(
+                    latestScopePayload?.appKinds,
+                    latestScopePayload?.appKindOther,
+                  )}
+                  onSubmitOffer={(terms) => emitAck("submit_offer", { projectId, builderId: userId, ...terms })}
+                  onReviseOffer={(terms) => emitAck("revise_offer", { projectId, builderId: userId, ...terms })}
+                  onWithdrawOffer={() => emitAck("withdraw_offer", { projectId, builderId: userId })}
+                  onSelectOffer={(offerId) => emitAck("select_offer", { projectId, offerId, clientId: userId })}
+                  onCancelNegotiation={() => emitAck("cancel_negotiation", { projectId, clientId: userId })}
+                  onUpdateOfferTerms={(offerId, terms) =>
+                    emitAck("update_offer_terms", { projectId, offerId, actorId: userId, ...terms })
+                  }
+                  onMarkOfferFinal={(offerId) => emitAck("mark_offer_final", { projectId, offerId, builderId: userId })}
+                  onUnfinalizeOffer={(offerId) => emitAck("unfinalize_offer", { projectId, offerId, builderId: userId })}
+                  onAcceptOffer={(offerId) => emitAck("accept_offer", { projectId, offerId, clientId: userId })}
+                />
           ) : null}
 
           {!showIntakeForm && canChat ? (
@@ -691,7 +735,7 @@ export function Chat({
                     Milestones
                   </div>
                   <ul className="space-y-1">
-                    {headerTermsData.milestones.map((m) => (
+                    {headerTermsData.milestones.map((m: any) => (
                       <li key={m.title} className="flex items-start justify-between gap-3 text-sm">
                         <span className="min-w-0">
                           <span className="font-medium">{m.title}</span>
@@ -737,7 +781,7 @@ export function Chat({
           projectId={projectId}
           milestone={nextDemoMilestone}
           currentSubmission={currentDemoSubmission}
-          onSubmit={async (deliverable) => {
+          onSubmit={async (payload) => {
             if (role !== "BUILDER" || projectStatus !== "ACTIVE") {
               return { ok: false, error: "Demo submission is not available right now" };
             }
@@ -745,7 +789,8 @@ export function Chat({
               projectId,
               milestoneId: nextDemoMilestone.id,
               senderId: userId,
-              deliverable,
+              bundle: payload.bundle,
+              whatChanged: payload.whatChanged,
             });
           }}
           onClose={() => setSubmitOpen(false)}

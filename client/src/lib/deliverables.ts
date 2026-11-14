@@ -1,184 +1,134 @@
 /**
- * Client-side mirror of the server deliverable contract.
- * Server validation in `server/src/lib/deliverables.ts` is authoritative;
- * this keeps the form UX consistent with it.
+ * Client-side mirror of the v2 deliverable contract (multi-target bundles).
+ * Server validation in `server/src/lib/deliverables.ts` is authoritative.
  */
 
-export const DELIVERABLE_KINDS = [
-  "WEB_LINK",
-  "MOBILE_BUILD",
-  "DESKTOP_BUILD",
-  "SOURCE_PACKAGE",
-  "DOCUMENT",
-  "OTHER",
+export const PLATFORM_TARGETS = [
+  "WEB",
+  "MOBILE_IOS",
+  "MOBILE_ANDROID",
+  "MOBILE_CROSS_PLATFORM",
+  "DESKTOP_WINDOWS",
+  "DESKTOP_MACOS",
+  "DESKTOP_LINUX",
 ] as const;
 
+export type PlatformTarget = (typeof PLATFORM_TARGETS)[number];
+
+export const DELIVERABLE_KINDS = ["WEB_LINK", "MOBILE_BUILD", "DESKTOP_BUILD"] as const;
 export type DeliverableKind = (typeof DELIVERABLE_KINDS)[number];
-
-export const DELIVERABLE_FIELDS = [
-  "ACCESS_URL",
-  "VERSION",
-  "PLATFORM",
-  "OS",
-  "INSTRUCTIONS",
-  "CREDENTIALS",
-  "LABEL",
-  "SUMMARY",
-] as const;
-
-export type DeliverableField = (typeof DELIVERABLE_FIELDS)[number];
 
 export type DeliverablePlatform = "ANDROID" | "IOS" | "CROSS_PLATFORM";
 export type DeliverableOs = "WINDOWS" | "MACOS" | "LINUX";
 
-export interface DeliverableSpec {
+interface TargetMatrixRow {
+  target: PlatformTarget;
   kind: DeliverableKind;
+  platform?: DeliverablePlatform;
+  os?: DeliverableOs;
+  label: string;
+}
+
+export const TARGET_MATRIX: Record<PlatformTarget, TargetMatrixRow> = {
+  WEB: { target: "WEB", kind: "WEB_LINK", label: "Web" },
+  MOBILE_IOS: { target: "MOBILE_IOS", kind: "MOBILE_BUILD", platform: "IOS", label: "iOS app" },
+  MOBILE_ANDROID: {
+    target: "MOBILE_ANDROID",
+    kind: "MOBILE_BUILD",
+    platform: "ANDROID",
+    label: "Android app",
+  },
+  MOBILE_CROSS_PLATFORM: {
+    target: "MOBILE_CROSS_PLATFORM",
+    kind: "MOBILE_BUILD",
+    platform: "CROSS_PLATFORM",
+    label: "Cross-platform mobile app",
+  },
+  DESKTOP_WINDOWS: {
+    target: "DESKTOP_WINDOWS",
+    kind: "DESKTOP_BUILD",
+    os: "WINDOWS",
+    label: "Windows app",
+  },
+  DESKTOP_MACOS: {
+    target: "DESKTOP_MACOS",
+    kind: "DESKTOP_BUILD",
+    os: "MACOS",
+    label: "macOS app",
+  },
+  DESKTOP_LINUX: {
+    target: "DESKTOP_LINUX",
+    kind: "DESKTOP_BUILD",
+    os: "LINUX",
+    label: "Linux app",
+  },
+};
+
+export const PLATFORM_TARGET_LABELS: Record<PlatformTarget, string> = {
+  WEB: "Web",
+  MOBILE_IOS: "iOS",
+  MOBILE_ANDROID: "Android",
+  MOBILE_CROSS_PLATFORM: "Cross-platform mobile",
+  DESKTOP_WINDOWS: "Windows",
+  DESKTOP_MACOS: "macOS",
+  DESKTOP_LINUX: "Linux",
+};
+
+export const TARGET_DESCRIPTIONS: Record<PlatformTarget, string> = {
+  WEB: "Website or web app (browser link)",
+  MOBILE_IOS: "iOS mobile build (IPA/TestFlight/App Store link)",
+  MOBILE_ANDROID: "Android mobile build (APK/store link)",
+  MOBILE_CROSS_PLATFORM: "Cross-platform mobile build",
+  DESKTOP_WINDOWS: "Windows desktop build/installer",
+  DESKTOP_MACOS: "macOS desktop build/installer",
+  DESKTOP_LINUX: "Linux desktop build/package",
+};
+
+export interface BundleSlotSpec {
+  target: PlatformTarget;
+  kind: DeliverableKind;
+  platform?: DeliverablePlatform;
+  os?: DeliverableOs;
   label?: string | null;
-  requiredFields?: DeliverableField[] | null;
   notes?: string | null;
 }
 
-export interface DeliverableDraft {
-  kind: DeliverableKind;
+export interface BundleSpec {
+  version: 2;
+  targets: PlatformTarget[];
+  slots: BundleSlotSpec[];
+}
+
+export interface SlotDraft {
+  target: PlatformTarget;
   title: string;
   accessUrl: string;
   instructions: string;
   version: string;
-  platform: "" | DeliverablePlatform;
-  os: "" | DeliverableOs;
   credentials: string;
-  label: string;
   summary: string;
+}
+
+export interface BundleDraft {
+  slots: SlotDraft[];
   whatChanged: string;
 }
 
-export const DELIVERABLE_KIND_LABELS: Record<DeliverableKind, string> = {
-  WEB_LINK: "Website / web app link",
-  MOBILE_BUILD: "Mobile build",
-  DESKTOP_BUILD: "Desktop build",
-  SOURCE_PACKAGE: "Source package",
-  DOCUMENT: "Document",
-  OTHER: "Other",
-};
-
-export const DELIVERABLE_KIND_HINTS: Record<DeliverableKind, string> = {
-  WEB_LINK: "Hosted preview or production URL the client can open in a browser.",
-  MOBILE_BUILD: "Link to an APK/IPA/TestFlight or unlisted store build.",
-  DESKTOP_BUILD: "Link to an installer or portable binary.",
-  SOURCE_PACKAGE: "Repo/archive link (include a branch or tag when useful).",
-  DOCUMENT: "Link to a spec, design file, report, or deck.",
-  OTHER: "Anything else — describe the deliverable and how to access it.",
-};
-
-export const DELIVERABLE_FIELD_LABELS: Record<DeliverableField, string> = {
-  ACCESS_URL: "Access / download link",
-  VERSION: "Version / build / branch",
-  PLATFORM: "Platform",
-  OS: "Operating system",
-  INSTRUCTIONS: "Access / install / review instructions",
-  CREDENTIALS: "Credentials (optional)",
-  LABEL: "Describe the deliverable",
-  SUMMARY: "Summary (optional)",
-};
-
-const KIND_RULES: Record<
-  DeliverableKind,
-  { allowed: DeliverableField[]; required: DeliverableField[] }
-> = {
-  WEB_LINK: {
-    allowed: ["ACCESS_URL", "VERSION", "INSTRUCTIONS", "CREDENTIALS", "SUMMARY"],
-    required: ["ACCESS_URL", "INSTRUCTIONS"],
-  },
-  MOBILE_BUILD: {
-    allowed: ["ACCESS_URL", "VERSION", "PLATFORM", "INSTRUCTIONS", "CREDENTIALS", "SUMMARY"],
-    required: ["ACCESS_URL", "PLATFORM", "INSTRUCTIONS"],
-  },
-  DESKTOP_BUILD: {
-    allowed: ["ACCESS_URL", "VERSION", "OS", "INSTRUCTIONS", "CREDENTIALS", "SUMMARY"],
-    required: ["ACCESS_URL", "OS", "INSTRUCTIONS"],
-  },
-  SOURCE_PACKAGE: {
-    allowed: ["ACCESS_URL", "VERSION", "INSTRUCTIONS", "CREDENTIALS", "SUMMARY"],
-    required: ["ACCESS_URL", "INSTRUCTIONS"],
-  },
-  DOCUMENT: {
-    allowed: ["ACCESS_URL", "VERSION", "INSTRUCTIONS", "CREDENTIALS", "SUMMARY"],
-    required: ["ACCESS_URL", "INSTRUCTIONS"],
-  },
-  OTHER: {
-    allowed: ["ACCESS_URL", "VERSION", "LABEL", "INSTRUCTIONS", "CREDENTIALS", "SUMMARY"],
-    required: ["ACCESS_URL", "LABEL", "INSTRUCTIONS"],
-  },
-};
-
-export const PLATFORM_LABELS: Record<DeliverablePlatform, string> = {
-  ANDROID: "Android",
-  IOS: "iOS",
-  CROSS_PLATFORM: "Cross-platform",
-};
-
-export const OS_LABELS: Record<DeliverableOs, string> = {
-  WINDOWS: "Windows",
-  MACOS: "macOS",
-  LINUX: "Linux",
-};
-
-export function allowedFields(kind: DeliverableKind): DeliverableField[] {
-  return [...KIND_RULES[kind].allowed];
+export interface SlotDeliverablePayload {
+  target: PlatformTarget;
+  deliverable: {
+    title: string;
+    accessUrl: string;
+    instructions: string;
+    version?: string;
+    credentials?: string;
+    summary?: string;
+  };
 }
 
-export function requiredFields(kind: DeliverableKind): DeliverableField[] {
-  return [...KIND_RULES[kind].required];
-}
-
-export function defaultDeliverableSpec(kind: DeliverableKind = "WEB_LINK"): DeliverableSpec {
-  return { kind, label: null, requiredFields: requiredFields(kind), notes: null };
-}
-
-/** Prefill suggestion from the scope intake; the offer terms stay authoritative. */
-export function inferDeliverableKindFromAppKinds(
-  appKinds?: unknown,
-  appKindOther?: unknown,
-): DeliverableKind {
-  const list = Array.isArray(appKinds)
-    ? appKinds
-        .filter((value): value is string => typeof value === "string")
-        .map((value) => value.toLowerCase())
-    : [];
-  const other = typeof appKindOther === "string" ? appKindOther.toLowerCase() : "";
-
-  if (list.includes("mobile app") || /\b(apk|ipa|ios|android)\b/.test(other)) {
-    return "MOBILE_BUILD";
-  }
-  if (list.includes("desktop app") || /\b(exe|installer|desktop)\b/.test(other)) {
-    return "DESKTOP_BUILD";
-  }
-  if (list.includes("website") || list.includes("web app") || /\b(website|web app)\b/.test(other)) {
-    return "WEB_LINK";
-  }
-  if (/\b(api|backend|sdk|library|repo|source)\b/.test(other)) {
-    return "SOURCE_PACKAGE";
-  }
-  return "WEB_LINK";
-}
-
-export function requiredFieldsForSpec(spec: DeliverableSpec | null | undefined): DeliverableField[] {
-  const kind = spec?.kind ?? "WEB_LINK";
-  const allowed = new Set(allowedFields(kind));
-  const merged = new Set<DeliverableField>(requiredFields(kind));
-  for (const field of spec?.requiredFields ?? []) {
-    if (allowed.has(field)) merged.add(field);
-  }
-  return [...merged];
-}
-
-export function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
+export interface BundleSubmissionPayload {
+  bundle: { slots: SlotDeliverablePayload[] };
+  whatChanged?: string;
 }
 
 const MAX_TITLE = 120;
@@ -190,98 +140,196 @@ const MIN_INSTRUCTIONS = 10;
 const MAX_SUMMARY = 2000;
 const MIN_CHANGE_NOTE = 10;
 
-/** Returns an error message, or null when the draft is valid. Mirrors the server. */
-export function validateDeliverableDraft(
-  spec: DeliverableSpec | null | undefined,
-  draft: DeliverableDraft,
+export function isPlatformTarget(value: unknown): value is PlatformTarget {
+  return typeof value === "string" && (PLATFORM_TARGETS as readonly string[]).includes(value);
+}
+
+export function uniqueTargets(targets: PlatformTarget[]): PlatformTarget[] {
+  const seen = new Set<PlatformTarget>();
+  const out: PlatformTarget[] = [];
+  for (const t of targets) {
+    if (!seen.has(t)) {
+      seen.add(t);
+      out.push(t);
+    }
+  }
+  return out;
+}
+
+export function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** Best-effort mapping from scope intake to default platform targets. */
+export function inferPlatformTargetsFromScope(
+  appKinds?: unknown,
+  appKindOther?: unknown,
+): PlatformTarget[] {
+  const list = Array.isArray(appKinds)
+    ? appKinds
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.toLowerCase())
+    : [];
+  const other = typeof appKindOther === "string" ? appKindOther.toLowerCase() : "";
+  const targets: PlatformTarget[] = [];
+
+  const wantsWeb =
+    list.includes("website") ||
+    list.includes("web app") ||
+    /\b(website|web app|web)\b/.test(other);
+  const wantsMobile =
+    list.includes("mobile app") || /\b(mobile|app|apk|ipa|ios|android)\b/.test(other);
+  const wantsDesktop =
+    list.includes("desktop app") || /\b(desktop|windows|mac|linux|exe|installer)\b/.test(other);
+
+  if (wantsWeb) targets.push("WEB");
+  if (wantsMobile) {
+    const ios = /\b(ios|iphone|ipad)\b/.test(other);
+    const android = /\bandroid\b/.test(other);
+    if (ios && !android) targets.push("MOBILE_IOS");
+    else if (android && !ios) targets.push("MOBILE_ANDROID");
+    else targets.push("MOBILE_CROSS_PLATFORM");
+  }
+  if (wantsDesktop) {
+    const win = /\bwindows\b/.test(other);
+    const mac = /\bmac(os)?\b/.test(other);
+    const linux = /\blinux\b/.test(other);
+    const specific = [
+      ...(win ? (["DESKTOP_WINDOWS"] as const) : []),
+      ...(mac ? (["DESKTOP_MACOS"] as const) : []),
+      ...(linux ? (["DESKTOP_LINUX"] as const) : []),
+    ];
+    if (specific.length > 0) targets.push(...specific);
+    else targets.push("DESKTOP_WINDOWS");
+  }
+  if (targets.length === 0) targets.push("WEB");
+  return uniqueTargets(targets);
+}
+
+function slotFromTarget(target: PlatformTarget): BundleSlotSpec {
+  const row = TARGET_MATRIX[target];
+  return {
+    target,
+    kind: row.kind,
+    ...(row.platform ? { platform: row.platform } : {}),
+    ...(row.os ? { os: row.os } : {}),
+    label: null,
+    notes: null,
+  };
+}
+
+export function buildBundleSpec(targets: PlatformTarget[]): BundleSpec {
+  const unique = uniqueTargets(targets);
+  return { version: 2, targets: unique, slots: unique.map(slotFromTarget) };
+}
+
+export function parseBundleSpec(value: unknown): BundleSpec | null {
+  if (Array.isArray(value) && value.every(isPlatformTarget)) {
+    const targets = uniqueTargets(value as PlatformTarget[]);
+    return targets.length ? buildBundleSpec(targets) : null;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const targetsRaw = Array.isArray(raw.targets) ? raw.targets : null;
+  if (!targetsRaw) return null;
+  const targets = uniqueTargets(targetsRaw.filter(isPlatformTarget));
+  if (targets.length === 0 || targets.length !== targetsRaw.length) return null;
+  const slotsRaw = Array.isArray(raw.slots) ? raw.slots : null;
+  if (!slotsRaw || slotsRaw.length !== targets.length) return buildBundleSpec(targets);
+  const slots: BundleSlotSpec[] = [];
+  for (let i = 0; i < targets.length; i++) {
+    const s = slotsRaw[i] as Record<string, unknown> | null;
+    if (!s || s.target !== targets[i]) return buildBundleSpec(targets);
+    const base = slotFromTarget(targets[i]);
+    slots.push({
+      ...base,
+      label: typeof s.label === "string" && s.label.trim() ? s.label.trim() : null,
+      notes: typeof s.notes === "string" && s.notes.trim() ? s.notes.trim() : null,
+    });
+  }
+  return { version: 2, targets, slots };
+}
+
+export function bundleSpecFromSnapshot(snapshot: unknown): BundleSpec | null {
+  if (!Array.isArray(snapshot) || snapshot.length === 0) return null;
+  return parseBundleSpec((snapshot[0] as any)?.deliverable);
+}
+
+export function emptySlotDraft(target: PlatformTarget): SlotDraft {
+  return { target, title: "", accessUrl: "", instructions: "", version: "", credentials: "", summary: "" };
+}
+
+export function emptyBundleDraft(spec: BundleSpec): BundleDraft {
+  return { slots: spec.targets.map(emptySlotDraft), whatChanged: "" };
+}
+
+export function validateBundleDraft(
+  spec: BundleSpec | null | undefined,
+  draft: BundleDraft,
   options: { resubmission?: boolean } = {},
 ): string | null {
-  const kind = spec?.kind ?? "WEB_LINK";
-  const required = new Set(requiredFieldsForSpec({ ...(spec ?? {}), kind }));
-  const allowed = new Set(allowedFields(kind));
-
-  const value = (field: DeliverableField) => {
-    switch (field) {
-      case "ACCESS_URL":
-        return draft.accessUrl.trim();
-      case "VERSION":
-        return draft.version.trim();
-      case "PLATFORM":
-        return draft.platform;
-      case "OS":
-        return draft.os;
-      case "INSTRUCTIONS":
-        return draft.instructions.trim();
-      case "CREDENTIALS":
-        return draft.credentials.trim();
-      case "LABEL":
-        return draft.label.trim();
-      case "SUMMARY":
-        return draft.summary.trim();
-    }
-  };
-
-  for (const field of required) {
-    if (!value(field)) return `${DELIVERABLE_FIELD_LABELS[field]} is required`;
-  }
-
-  const title = draft.title.trim();
-  if (!title) return "A submission title is required";
-  if (title.length > MAX_TITLE) return `Title must be ${MAX_TITLE} characters or fewer`;
-
-  const url = draft.accessUrl.trim();
-  if (!url) return "Access / download link is required";
-  if (url.length > MAX_URL) return `Link must be ${MAX_URL} characters or fewer`;
-  if (!isHttpUrl(url)) return "Access / download link must be a valid http(s) URL";
-
-  const instructions = draft.instructions.trim();
-  if (instructions) {
-    if (instructions.length < MIN_INSTRUCTIONS) {
-      return `Instructions must be at least ${MIN_INSTRUCTIONS} characters`;
-    }
-    if (instructions.length > MAX_TEXT) {
-      return `Instructions must be ${MAX_TEXT} characters or fewer`;
-    }
-  }
-
-  if (draft.version.trim().length > MAX_VERSION) {
-    return `Version must be ${MAX_VERSION} characters or fewer`;
-  }
-  if (draft.credentials.trim().length > MAX_CREDENTIALS) {
-    return `Credentials must be ${MAX_CREDENTIALS} characters or fewer`;
-  }
-  if (allowed.has("LABEL") && !draft.label.trim()) {
-    return "Describe the deliverable";
-  }
-  if (draft.summary.trim().length > MAX_SUMMARY) {
-    return `Summary must be ${MAX_SUMMARY} characters or fewer`;
+  if (!spec || spec.targets.length === 0) return "A deliverable contract is required";
+  for (let i = 0; i < spec.targets.length; i++) {
+    const target = spec.targets[i];
+    const slot = draft.slots[i];
+    const label = PLATFORM_TARGET_LABELS[target];
+    if (!slot || slot.target !== target) return `Missing submission for ${label}`;
+    const title = slot.title.trim();
+    if (!title) return `A title is required for ${label}`;
+    if (title.length > MAX_TITLE) return `Title for ${label} is too long`;
+    const url = slot.accessUrl.trim();
+    if (!url) return `An access/download link is required for ${label}`;
+    if (url.length > MAX_URL) return `Link for ${label} is too long`;
+    if (!isHttpUrl(url)) return `Link for ${label} must be a valid http(s) URL`;
+    const instructions = slot.instructions.trim();
+    if (!instructions) return `Instructions are required for ${label}`;
+    if (instructions.length < MIN_INSTRUCTIONS) return `Instructions for ${label} must be at least ${MIN_INSTRUCTIONS} characters`;
+    if (instructions.length > MAX_TEXT) return `Instructions for ${label} are too long`;
+    if (slot.version.trim().length > MAX_VERSION) return `Version for ${label} is too long`;
+    if (slot.credentials.trim().length > MAX_CREDENTIALS) return `Credentials for ${label} are too long`;
+    if (slot.summary.trim().length > MAX_SUMMARY) return `Summary for ${label} is too long`;
   }
   const whatChanged = draft.whatChanged.trim();
-  if (options.resubmission) {
-    if (whatChanged.length < MIN_CHANGE_NOTE) {
-      return `Describe what changed (at least ${MIN_CHANGE_NOTE} characters)`;
-    }
+  if (options.resubmission && whatChanged.length < MIN_CHANGE_NOTE) {
+    return `Describe what changed (at least ${MIN_CHANGE_NOTE} characters)`;
   }
-  if (whatChanged.length > MAX_SUMMARY) {
-    return `Change note must be ${MAX_SUMMARY} characters or fewer`;
-  }
-
+  if (whatChanged.length > MAX_SUMMARY) return "Change note is too long";
   return null;
 }
 
-/** Build the socket payload for a submission (omits empty optional fields). */
-export function toDeliverablePayload(draft: DeliverableDraft) {
+export function toBundleSubmissionPayload(draft: BundleDraft): BundleSubmissionPayload {
+  const whatChanged = draft.whatChanged.trim();
   return {
-    kind: draft.kind,
-    title: draft.title.trim(),
-    accessUrl: draft.accessUrl.trim(),
-    instructions: draft.instructions.trim(),
-    ...(draft.version.trim() ? { version: draft.version.trim() } : {}),
-    ...(draft.platform ? { platform: draft.platform } : {}),
-    ...(draft.os ? { os: draft.os } : {}),
-    ...(draft.credentials.trim() ? { credentials: draft.credentials.trim() } : {}),
-    ...(draft.label.trim() ? { label: draft.label.trim() } : {}),
-    ...(draft.summary.trim() ? { summary: draft.summary.trim() } : {}),
-    ...(draft.whatChanged.trim() ? { whatChanged: draft.whatChanged.trim() } : {}),
+    bundle: {
+      slots: draft.slots.map((slot) => ({
+        target: slot.target,
+        deliverable: {
+          title: slot.title.trim(),
+          accessUrl: slot.accessUrl.trim(),
+          instructions: slot.instructions.trim(),
+          ...(slot.version.trim() ? { version: slot.version.trim() } : {}),
+          ...(slot.credentials.trim() ? { credentials: slot.credentials.trim() } : {}),
+          ...(slot.summary.trim() ? { summary: slot.summary.trim() } : {}),
+        },
+      })),
+    },
+    ...(whatChanged ? { whatChanged } : {}),
   };
+}
+
+export function bundleSummaryLabel(spec: BundleSpec): string {
+  const n = spec.targets.length;
+  return `Bundle submitted (${n} target${n === 1 ? "" : "s"})`;
+}
+
+export function bundlePrimaryUrlFromPayload(payload: any): string | null {
+  const slots = payload?.bundle?.slots;
+  if (!Array.isArray(slots) || slots.length === 0) return null;
+  const first = slots[0]?.deliverable?.accessUrl ?? slots[0]?.accessUrl;
+  return typeof first === "string" && first ? first : null;
 }

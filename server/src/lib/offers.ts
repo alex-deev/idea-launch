@@ -1,11 +1,14 @@
 import { LongTermCadence, type OfferStatus } from "@prisma/client";
 
 import {
-  type DeliverableKind,
-  type DeliverableSpec,
-  defaultDeliverableSpec,
-  parseDeliverableSpec,
-  parseDeliverableSpecs,
+  type BundleSpec,
+  type PlatformTarget,
+  buildBundleSpec,
+  ensureUniformBundles,
+  inferPlatformTargetsFromScope,
+  parseBundleSpec,
+  parsePlatformTargets,
+  uniqueTargets,
 } from "./deliverables.js";
 import { buildMilestones } from "./milestones.js";
 
@@ -21,7 +24,7 @@ export type OfferMilestoneSnapshotItem = {
   amount: number;
   releasePercent: number;
   dueDate: string | null;
-  deliverable: DeliverableSpec;
+  deliverable: BundleSpec;
 };
 
 export type OfferTermsInput = {
@@ -30,7 +33,12 @@ export type OfferTermsInput = {
   longTermCadence?: unknown;
   longTermNotes?: unknown;
   milestoneDueDates?: unknown; // array by index (0-2) or by stageNumber (1-3)
-  milestoneDeliverables?: unknown; // array by index (0-2) or by stageNumber (1-3)
+  platformTargets?: unknown; // ordered, unique PlatformTarget[]
+  /**
+   * Optional per-slot label/notes overrides applied uniformly to every milestone.
+   * Array aligned to platformTargets: [{label?, notes?}, ...]
+   */
+  slotOverrides?: unknown;
 };
 
 export function parseTotalCents(value: unknown): number | null {
@@ -73,9 +81,7 @@ function toIsoOrNull(value: unknown): string | null {
 export function parseMilestoneDueDates(value: unknown): Array<string | null> {
   const result: Array<string | null> = [null, null, null];
   if (Array.isArray(value)) {
-    for (let i = 0; i < 3; i++) {
-      result[i] = toIsoOrNull(value[i]);
-    }
+    for (let i = 0; i < 3; i++) result[i] = toIsoOrNull(value[i]);
     return result;
   }
   if (value && typeof value === "object") {
@@ -90,11 +96,21 @@ export function parseMilestoneDueDates(value: unknown): Array<string | null> {
   return result;
 }
 
+function parseSlotOverrides(
+  value: unknown,
+): Array<{ label?: unknown; notes?: unknown } | null> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.map((entry) =>
+    entry && typeof entry === "object" && !Array.isArray(entry)
+      ? { label: (entry as any).label, notes: (entry as any).notes }
+      : null,
+  );
+}
+
 export function buildMilestonesSnapshot(
   totalCents: number,
-  dueDates?: Array<string | null>,
-  deliverables?: Array<DeliverableSpec | null>,
-  defaultDeliverableKind: DeliverableKind = "WEB_LINK",
+  dueDates: Array<string | null>,
+  deliverable: BundleSpec,
 ): OfferMilestoneSnapshotItem[] {
   const dates = dueDates ?? [null, null, null];
   return buildMilestones(totalCents).map((m, i) => ({
@@ -103,8 +119,7 @@ export function buildMilestonesSnapshot(
     amount: m.amount,
     releasePercent: m.releasePercent,
     dueDate: dates[i] ?? null,
-    deliverable:
-      deliverables?.[i] ?? defaultDeliverableSpec(defaultDeliverableKind),
+    deliverable,
   }));
 }
 
@@ -115,21 +130,39 @@ export type OfferTermsInputSource = {
   milestonesSnapshot?: unknown;
 };
 
+function extractExistingBundle(snapshot: unknown): BundleSpec | null {
+  if (!Array.isArray(snapshot) || snapshot.length === 0) return null;
+  // v2 uniform: first item's deliverable
+  return parseBundleSpec((snapshot[0] as any)?.deliverable);
+}
+
+export type NormalizeOfferTermsResult =
+  | { ok: true; terms: ReturnType<typeof normalizeOfferTermsOk> }
+  | { ok: false; error: string };
+
+function normalizeOfferTermsOk(
+  totalCents: number,
+  milestonesSnapshot: OfferMilestoneSnapshotItem[],
+  longTermAmountCents: number | null,
+  longTermCadence: LongTermCadence,
+  longTermNotes: string | null,
+) {
+  return { totalCents, milestonesSnapshot, longTermAmountCents, longTermCadence, longTermNotes };
+}
+
 export function normalizeOfferTerms(
   totalCents: number,
   input: OfferTermsInput,
   existing?: OfferTermsInputSource,
-  options: { defaultDeliverableKind?: DeliverableKind } = {},
-) {
+  options: { defaultPlatformTargets?: PlatformTarget[] } = {},
+): NormalizeOfferTermsResult {
   const existingSnapshot = Array.isArray(existing?.milestonesSnapshot)
     ? (existing!.milestonesSnapshot as any[])
     : [];
   const existingDates = [0, 1, 2].map(
     (i) => (existingSnapshot[i]?.dueDate ?? null) as string | null,
   );
-  const existingDeliverables: Array<DeliverableSpec | null> = [0, 1, 2].map((i) =>
-    parseDeliverableSpec(existingSnapshot[i]?.deliverable),
-  );
+  const existingBundle = extractExistingBundle(existingSnapshot);
 
   const providedDates =
     input.milestoneDueDates !== undefined ? parseMilestoneDueDates(input.milestoneDueDates) : null;
@@ -137,13 +170,36 @@ export function normalizeOfferTerms(
     ? providedDates.map((d, i) => d ?? existingDates[i] ?? null)
     : existingDates;
 
-  const providedDeliverables =
-    input.milestoneDeliverables !== undefined
-      ? parseDeliverableSpecs(input.milestoneDeliverables)
-      : null;
-  const deliverables = [0, 1, 2].map(
-    (i) => providedDeliverables?.[i] ?? existingDeliverables[i] ?? null,
-  );
+  // Resolve platform targets (v2-only): explicit > existing > default
+  let targets: PlatformTarget[] | null = null;
+  if (input.platformTargets !== undefined) {
+    targets = parsePlatformTargets(input.platformTargets);
+    if (!targets) return { ok: false, error: "A valid set of platform targets is required" };
+  } else if (existingBundle) {
+    targets = existingBundle.targets;
+  } else if (options.defaultPlatformTargets && options.defaultPlatformTargets.length > 0) {
+    targets = uniqueTargets(options.defaultPlatformTargets);
+  }
+
+  if (!targets || targets.length === 0) {
+    return { ok: false, error: "Platform targets are required" };
+  }
+
+  const overrides = parseSlotOverrides(input.slotOverrides);
+  // Preserve existing label/notes when targets unchanged and no overrides provided
+  let effectiveOverrides = overrides;
+  if (!overrides && existingBundle) {
+    const same =
+      existingBundle.targets.length === targets.length &&
+      existingBundle.targets.every((t, i) => t === targets[i]);
+    if (same) {
+      effectiveOverrides = existingBundle.slots.map((s) => ({ label: s.label, notes: s.notes }));
+    }
+  }
+  const bundle = buildBundleSpec(targets, effectiveOverrides);
+
+  const uniform = ensureUniformBundles([bundle, bundle, bundle]);
+  if (!uniform.ok) return uniform;
 
   const longTermAmountCents =
     input.longTermAmountCents !== undefined
@@ -159,16 +215,14 @@ export function normalizeOfferTerms(
       : (existing?.longTermNotes ?? null);
 
   return {
-    totalCents,
-    milestonesSnapshot: buildMilestonesSnapshot(
+    ok: true,
+    terms: normalizeOfferTermsOk(
       totalCents,
-      dueDates,
-      deliverables,
-      options.defaultDeliverableKind,
+      buildMilestonesSnapshot(totalCents, dueDates, uniform.spec),
+      longTermAmountCents,
+      longTermCadence,
+      longTermNotes,
     ),
-    longTermAmountCents,
-    longTermCadence,
-    longTermNotes,
   };
 }
 
@@ -182,14 +236,14 @@ export function snapshotDueDates(snapshot: unknown): Array<Date | null> {
   });
 }
 
-/** Deliverable specs in snapshot order (stage 1-3), defaulting to WEB_LINK. */
-export function snapshotDeliverables(snapshot: unknown): DeliverableSpec[] {
-  const items = Array.isArray(snapshot) ? snapshot : [];
-  return [0, 1, 2].map(
-    (i) => parseDeliverableSpec((items[i] as any)?.deliverable) ?? defaultDeliverableSpec("WEB_LINK"),
-  );
+/** Uniform v2 bundle spec from snapshot (stage 1). */
+export function snapshotBundleSpec(snapshot: unknown): BundleSpec | null {
+  return extractExistingBundle(snapshot);
 }
 
 export function isTerminalOfferStatus(status: OfferStatus) {
   return TERMINAL_OFFER_STATUSES.includes(status);
 }
+
+// Re-export for convenience
+export { inferPlatformTargetsFromScope, parsePlatformTargets };
