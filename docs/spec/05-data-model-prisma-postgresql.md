@@ -92,7 +92,7 @@ Constraint: `@@unique([identifier, token])`.
 |---|---|---|
 | `id` | String | `@id @default(cuid())` |
 | `projectId` | String | FK → `Project.id`, `onDelete: Cascade` |
-| `stageNumber` | Int | 1–4 |
+| `stageNumber` | Int | 1–3 |
 | `title` | String | |
 | `amount` | Int | cents |
 | `releasePercent` | Int | `@default(0)` — payout share metadata (30/40/30); milestone `amount` is the releasable cents (Initial 30%, Final 40%, Deployment 30% of total) |
@@ -100,13 +100,14 @@ Constraint: `@@unique([identifier, token])`.
 | `dueDate` | DateTime? | negotiable in offer terms pre-accept; applied to project milestones on acceptance |
 | `releasedAt` | DateTime? | |
 | `latePenalty` | Int | `@default(0)` — cents |
-| `demoUrl` | String? | current demo link for the milestone (latest submission) |
+| `demoUrl` | String? | current primary link for the milestone (latest submission; mirrors `deliverable.accessUrl`) |
 | `revisionRequestedAt` | DateTime? | when client requested demo changes (soft 24h revision target source; reset on each rejection) |
 | `revisionReason` | String? | client’s required reason for requesting changes on the current demo |
 | `currentDemoMessageId` | String? | reference to the current actionable `DEMO_WIDGET` submission message for this milestone |
+| `deliverableSpec` | Json? | agreed deliverable contract copied from the accepted offer snapshot at acceptance (`kind`, `label`, `requiredFields`, `notes`); `submit_demo` validates submissions against it (falls back to `WEB_LINK` defaults when absent for legacy milestones) |
 | `createdAt` / `updatedAt` | DateTime | `now()` / `@updatedAt` |
 
-> **Demo review (Direction A, lightweight):** applies to **Initial Demo** and **Final Demo** milestones only. A rejection sets `CHANGES_REQUESTED` with `revisionRequestedAt`/`revisionReason` and targets the current submission; each new rejection resets the soft 24h target. Builder resubmission creates a new `DEMO_WIDGET` for the same milestone, updates `currentDemoMessageId`/`demoUrl`, and clears/advances review state per flow (late resubmission allowed and flagged). Only the current, non-rejected submission may be approved/released. Final persisted field/enum details may be refined during implementation but must preserve these semantics.
+> **Demo review (Direction A, lightweight):** applies to **Initial Demo** and **Final Demo** milestones only. A rejection sets `CHANGES_REQUESTED` with `revisionRequestedAt`/`revisionReason` and targets the current submission; each new rejection resets the soft 24h target. Builder resubmission creates a new `DEMO_WIDGET` for the same milestone, updates `currentDemoMessageId`/`demoUrl`/`deliverableSpec` context as applicable, and clears/advances review state per flow (late resubmission allowed and flagged). Only the current, non-rejected submission may be approved/released. Submissions are typed against the milestone/offer deliverable contract (kind-aware required fields, strict to the kind); legacy `demoUrl`-only submissions remain accepted and normalized for back-compat. Final persisted field/enum details may be refined during implementation but must preserve these semantics.
 
 ### 5.7 `Offer` (first-class)
 
@@ -117,7 +118,7 @@ Constraint: `@@unique([identifier, token])`.
 | `builderId` | String | FK → `User.id`, `onDelete: Cascade` |
 | `status` | OfferStatus | `@default(SUBMITTED)` |
 | `totalCents` | Int | proposed/agreed total (cents); per-milestone amounts are auto-derived 30/40/30 and read-only |
-| `milestonesSnapshot` | Json | calculated milestone terms (titles, amounts, releasePercent, proposed `dueDate`s) for comparison/negotiation |
+| `milestonesSnapshot` | Json | calculated milestone terms (titles, amounts, releasePercent, proposed `dueDate`s, and per-milestone `deliverable` spec `{ kind, label, requiredFields, notes }`) for comparison/negotiation; the accepted snapshot’s deliverables are copied to project milestones as `deliverableSpec` on acceptance |
 | `longTermAmountCents` | Int? | informational (MVP, not escrowed) |
 | `longTermCadence` | LongTermCadence | `@default(NONE)` |
 | `longTermNotes` | String? | informational terms/notes |
@@ -137,7 +138,7 @@ Constraint: `@@unique([identifier, token])`.
 | `senderId` | String? | FK → `User.id`, `onDelete: SetNull` |
 | `type` | MessageType | `@default(TEXT)` |
 | `content` | String | |
-| `payload` | Json? | widget/system data (offer widgets may be derived from or linked to `Offer` for compatibility) |
+| `payload` | Json? | widget/system data (offer widgets may be derived from or linked to `Offer` for compatibility). `DEMO_WIDGET` payloads carry the typed submission (`deliverable` + `specVersion`, `submittedAt`, mirrored `demoUrl`/`accessUrl`, late/revision flags); legacy demo messages may only have `demoUrl`. |
 | `createdAt` | DateTime | `@default(now())` |
 
 ### 5.9 Enums
@@ -189,21 +190,14 @@ enum MessageType {
 
 ### 5.9 Seed data (`server/prisma/seed.ts`)
 
-Deletes in dependency order: messages → milestones → projects → sessions → accounts → users, then creates:
+Deletes in dependency order: offers → messages → payments → milestones → projects → sessions → accounts → users, then creates:
 
-- **Client:** `id: "client-user"`, `name: "Client User"`, `email: "client@example.com"`, `role: "CLIENT"`.
-- **Builder:** `id: "builder-user"`, `name: "Builder User"`, `email: "builder@example.com"`, `role: "BUILDER"`.
-- **Project:** `id: "project-123"`, `title: "Project 123"`, `totalEscrow: 100000` (`$1,000.00`), `status: "SCOPING"`, deadline `now + 14 days`, client + builder assigned.
-- **Milestones:**
-
-| id | Stage | Title | Amount | releasePercent | Status |
-|---|---|---|---|---|---|
-| `milestone-1` | 1 | Initial Demo | 30000 | 30 | PLANNED |
-| `milestone-2` | 2 | Final Demo | 40000 | 40 | PLANNED |
-| `milestone-3` | 3 | Deployment | 30000 | 30 | PLANNED |
+- **Users:** `client@example.com` (`CLIENT`, `client-user`), `builder@example.com` (`BUILDER`, `builder-user`), `builder2@example.com` (`BUILDER`, `builder-two`), all with password `password`.
+- **Projects (4):** `project-123` Idea Launch Marketplace (`SCOPING`), `project-456` Analytics Dashboard (`OPEN_FOR_BIDS`, 2 submitted offers), `project-789` Mobile Companion App (`ACTIVE`, accepted offer, builder assigned, `MOBILE_BUILD` deliverable specs on milestones/snapshot), `project-999` Client Portal Redesign (`SCOPING`).
+- **Milestones/offers:** 3 milestones per project (Initial Demo 30%, Final Demo 40%, Deployment 30%); offer snapshots include per-milestone `deliverable` specs (active project seeded as `MOBILE_BUILD`).
 
 
-> **Migrations exist** under `server/prisma/migrations/` (`20261109000000_init`, `20261109010000_add_payments`, `20261109020000_add_user_password`). Apply with `npm run db:migrate` (dev) or `npm run prisma:deploy -w server` (prod) before seeding.
+> **Migrations exist** under `server/prisma/migrations/` (`20261109000000_init`, `20261109010000_add_payments`, `20261109020000_add_user_password`, `20261114120000_add_milestone_deliverable_spec`). Apply with `npm run prisma:deploy -w server` (or `npm run db:migrate` where shadow DB is supported) before seeding.
 
 ---
 

@@ -1,5 +1,12 @@
 import { LongTermCadence, type OfferStatus } from "@prisma/client";
 
+import {
+  type DeliverableKind,
+  type DeliverableSpec,
+  defaultDeliverableSpec,
+  parseDeliverableSpec,
+  parseDeliverableSpecs,
+} from "./deliverables.js";
 import { buildMilestones } from "./milestones.js";
 
 export const TERMINAL_OFFER_STATUSES: OfferStatus[] = [
@@ -14,6 +21,7 @@ export type OfferMilestoneSnapshotItem = {
   amount: number;
   releasePercent: number;
   dueDate: string | null;
+  deliverable: DeliverableSpec;
 };
 
 export type OfferTermsInput = {
@@ -22,6 +30,7 @@ export type OfferTermsInput = {
   longTermCadence?: unknown;
   longTermNotes?: unknown;
   milestoneDueDates?: unknown; // array by index (0-2) or by stageNumber (1-3)
+  milestoneDeliverables?: unknown; // array by index (0-2) or by stageNumber (1-3)
 };
 
 export function parseTotalCents(value: unknown): number | null {
@@ -84,6 +93,8 @@ export function parseMilestoneDueDates(value: unknown): Array<string | null> {
 export function buildMilestonesSnapshot(
   totalCents: number,
   dueDates?: Array<string | null>,
+  deliverables?: Array<DeliverableSpec | null>,
+  defaultDeliverableKind: DeliverableKind = "WEB_LINK",
 ): OfferMilestoneSnapshotItem[] {
   const dates = dueDates ?? [null, null, null];
   return buildMilestones(totalCents).map((m, i) => ({
@@ -92,27 +103,47 @@ export function buildMilestonesSnapshot(
     amount: m.amount,
     releasePercent: m.releasePercent,
     dueDate: dates[i] ?? null,
+    deliverable:
+      deliverables?.[i] ?? defaultDeliverableSpec(defaultDeliverableKind),
   }));
 }
+
+export type OfferTermsInputSource = {
+  longTermAmountCents?: number | null;
+  longTermCadence?: LongTermCadence;
+  longTermNotes?: string | null;
+  milestonesSnapshot?: unknown;
+};
 
 export function normalizeOfferTerms(
   totalCents: number,
   input: OfferTermsInput,
-  existing?: {
-    longTermAmountCents?: number | null;
-    longTermCadence?: LongTermCadence;
-    longTermNotes?: string | null;
-    milestonesSnapshot?: unknown;
-  },
+  existing?: OfferTermsInputSource,
+  options: { defaultDeliverableKind?: DeliverableKind } = {},
 ) {
-  const existingDates = Array.isArray(existing?.milestonesSnapshot)
-    ? [0, 1, 2].map((i) => ((existing!.milestonesSnapshot as any[])[i]?.dueDate ?? null) as string | null)
-    : [null, null, null];
+  const existingSnapshot = Array.isArray(existing?.milestonesSnapshot)
+    ? (existing!.milestonesSnapshot as any[])
+    : [];
+  const existingDates = [0, 1, 2].map(
+    (i) => (existingSnapshot[i]?.dueDate ?? null) as string | null,
+  );
+  const existingDeliverables: Array<DeliverableSpec | null> = [0, 1, 2].map((i) =>
+    parseDeliverableSpec(existingSnapshot[i]?.deliverable),
+  );
+
   const providedDates =
     input.milestoneDueDates !== undefined ? parseMilestoneDueDates(input.milestoneDueDates) : null;
   const dueDates = providedDates
     ? providedDates.map((d, i) => d ?? existingDates[i] ?? null)
     : existingDates;
+
+  const providedDeliverables =
+    input.milestoneDeliverables !== undefined
+      ? parseDeliverableSpecs(input.milestoneDeliverables)
+      : null;
+  const deliverables = [0, 1, 2].map(
+    (i) => providedDeliverables?.[i] ?? existingDeliverables[i] ?? null,
+  );
 
   const longTermAmountCents =
     input.longTermAmountCents !== undefined
@@ -129,7 +160,12 @@ export function normalizeOfferTerms(
 
   return {
     totalCents,
-    milestonesSnapshot: buildMilestonesSnapshot(totalCents, dueDates),
+    milestonesSnapshot: buildMilestonesSnapshot(
+      totalCents,
+      dueDates,
+      deliverables,
+      options.defaultDeliverableKind,
+    ),
     longTermAmountCents,
     longTermCadence,
     longTermNotes,
@@ -144,6 +180,14 @@ export function snapshotDueDates(snapshot: unknown): Array<Date | null> {
     const d = new Date(raw);
     return Number.isNaN(d.getTime()) ? null : d;
   });
+}
+
+/** Deliverable specs in snapshot order (stage 1-3), defaulting to WEB_LINK. */
+export function snapshotDeliverables(snapshot: unknown): DeliverableSpec[] {
+  const items = Array.isArray(snapshot) ? snapshot : [];
+  return [0, 1, 2].map(
+    (i) => parseDeliverableSpec((items[i] as any)?.deliverable) ?? defaultDeliverableSpec("WEB_LINK"),
+  );
 }
 
 export function isTerminalOfferStatus(status: OfferStatus) {

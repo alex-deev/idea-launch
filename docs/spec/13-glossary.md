@@ -9,6 +9,7 @@
 | **Final offer** | Builder-marked, decision-ready negotiated terms for the selected offer |
 | **Escrow** | Project funds (`totalEscrow`) funded on acceptance of the final offer and released per milestone |
 | **Probationary** | New builder state with a `$1,500` budget cap |
-| **Demo widget** | Builder's milestone deliverable, approved by the client |
+| **Deliverable spec** | Per-milestone contract (kind/label/required fields/notes) declared in offer terms and copied to `Milestone.deliverableSpec` on acceptance; governs typed demo submissions |
+| **Demo widget** | Builder's typed milestone submission (`DEMO_WIDGET`, kind-aware link/artifact + instructions; `demoUrl`/`accessUrl` mirrors for legacy), reviewed/approved by the client |
 | **Release percent** | Share of escrow aligned to milestone payout (30/40/30) |
 | **Refund tier** | Progressive refund percentage applied on cancellation by highest released stage |

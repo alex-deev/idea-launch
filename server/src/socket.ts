@@ -12,8 +12,15 @@ import {
   parseLongTermNotes,
   parseMilestoneDueDates,
   parseTotalCents,
+  snapshotDeliverables,
   snapshotDueDates,
 } from "./lib/offers.js";
+import {
+  defaultDeliverableSpec,
+  inferDeliverableKindFromAppKinds,
+  parseDeliverableSpec,
+  validateDeliverableSubmission,
+} from "./lib/deliverables.js";
 import { fundEscrow, releaseMilestone } from "./services/escrow.js";
 import { synthesizeScope } from "./services/synthesis.js";
 
@@ -107,6 +114,7 @@ async function applyAcceptedOfferTerms(projectId: string, offer: any) {
   const totalCents = offer.totalCents as number;
   const blueprint = buildMilestones(totalCents);
   const dueDates = snapshotDueDates(offer.milestonesSnapshot);
+  const deliverables = snapshotDeliverables(offer.milestonesSnapshot);
   await prisma.$transaction(async (tx) => {
     await tx.project.update({
       where: { id: projectId },
@@ -125,10 +133,21 @@ async function applyAcceptedOfferTerms(projectId: string, offer: any) {
           amount: b.amount,
           releasePercent: b.releasePercent,
           dueDate: dueDates[i],
+          deliverableSpec: deliverables[i] as any,
         },
       });
     }
   });
+}
+
+/** Scope-derived default deliverable kind, used to prefill offer terms. */
+async function projectDefaultDeliverableKind(projectId: string) {
+  const scope = await prisma.message.findFirst({
+    where: { projectId, type: "SCOPE_WIDGET" as any },
+    orderBy: { createdAt: "desc" },
+  });
+  const payload = (scope?.payload ?? {}) as JsonRecord;
+  return inferDeliverableKindFromAppKinds(payload.appKinds, payload.appKindOther);
 }
 
 function normalizeScopePayload(payload: unknown, totalCents: number) {
@@ -384,10 +403,40 @@ export function initializeSocket(httpServer: HttpServer) {
 
         const isDemoReviewMilestone = milestone.title === "Initial Demo" || milestone.title === "Final Demo";
         const isResubmission = milestone.status === ("CHANGES_REQUESTED" as any);
+        const requiresChangeNote = isResubmission || !!milestone.currentDemoMessageId;
         if (isResubmission && !isDemoReviewMilestone) {
           ack?.({ ok: false, error: "Changes-requested resubmission is only supported for demo milestones" });
           return;
         }
+
+        const spec = parseDeliverableSpec((milestone as any).deliverableSpec) ?? null;
+        const legacyDemoUrl =
+          typeof data.demoUrl === "string" && data.demoUrl.trim() ? data.demoUrl.trim() : null;
+
+        // Typed submissions validate against the agreed spec; the legacy demoUrl
+        // path stays accepted (relaxed) so older clients keep working.
+        const validated = data.deliverable
+          ? validateDeliverableSubmission(spec, data.deliverable, {
+              resubmission: requiresChangeNote,
+            })
+          : legacyDemoUrl
+            ? validateDeliverableSubmission(
+                spec,
+                {
+                  title: `${milestone.title} submission`,
+                  accessUrl: legacyDemoUrl,
+                  instructions: data.instructions,
+                  whatChanged: data.whatChanged,
+                },
+                { resubmission: requiresChangeNote, enforceRequired: false },
+              )
+            : ({ ok: false, error: "A demo link or structured deliverable is required" } as const);
+        if (!validated.ok) {
+          ack?.({ ok: false, error: validated.error });
+          return;
+        }
+        const deliverable = validated.value;
+        const resolvedSpec = spec ?? defaultDeliverableSpec("WEB_LINK");
 
         const now = new Date();
         const latePenalty =
@@ -415,13 +464,17 @@ export function initializeSocket(httpServer: HttpServer) {
             projectId: data.projectId,
             senderId,
             type: "DEMO_WIDGET" as any,
-            content: data.demoUrl ?? "Demo submitted",
+            content: deliverable.accessUrl,
             payload: {
               milestoneId: data.milestoneId,
-              demoUrl: data.demoUrl ?? null,
+              deliverable,
+              demoUrl: deliverable.accessUrl,
+              accessUrl: deliverable.accessUrl,
               latePenalty,
               revisionOverdue,
               resubmission: isResubmission,
+              specVersion: 1,
+              submittedAt: now.toISOString(),
               ...(data.payload ?? {}),
             },
           },
@@ -431,7 +484,8 @@ export function initializeSocket(httpServer: HttpServer) {
         await prisma.milestone.update({
           where: { id: milestone.id },
           data: {
-            demoUrl: data.demoUrl ?? null,
+            demoUrl: deliverable.accessUrl,
+            deliverableSpec: resolvedSpec as any,
             status: "IN_PROGRESS" as any,
             currentDemoMessageId: message.id,
             // Clear review-request state on (re)submission; history remains in messages.
@@ -747,13 +801,19 @@ export function initializeSocket(httpServer: HttpServer) {
           return;
         }
 
-        const terms = normalizeOfferTerms(totalCents, {
+        const terms = normalizeOfferTerms(
           totalCents,
-          longTermAmountCents: data.longTermAmountCents,
-          longTermCadence: data.longTermCadence,
-          longTermNotes: data.longTermNotes,
-          milestoneDueDates: data.milestoneDueDates,
-        });
+          {
+            totalCents,
+            longTermAmountCents: data.longTermAmountCents,
+            longTermCadence: data.longTermCadence,
+            longTermNotes: data.longTermNotes,
+            milestoneDueDates: data.milestoneDueDates,
+            milestoneDeliverables: data.milestoneDeliverables,
+          },
+          undefined,
+          { defaultDeliverableKind: await projectDefaultDeliverableKind(projectId) },
+        );
 
         const offer = await prisma.offer.create({
           data: {

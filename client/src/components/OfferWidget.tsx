@@ -5,6 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  DELIVERABLE_KIND_LABELS,
+  type DeliverableKind,
+  type DeliverableSpec,
+} from "@/lib/deliverables";
 import { buildMilestones } from "@/lib/milestones";
 
 export type OfferStatus =
@@ -28,6 +33,7 @@ export interface OfferRecord {
     amount: number;
     releasePercent?: number;
     dueDate?: string | null;
+    deliverable?: DeliverableSpec | null;
   }> | null;
   longTermAmountCents?: number | null;
   longTermCadence?: "NONE" | "MONTHLY" | "QUARTERLY" | "YEARLY" | "ONE_TIME" | null;
@@ -44,12 +50,15 @@ interface OffersPanelProps {
   offers: OfferRecord[];
   probationary?: boolean;
   builderAtCapacity?: boolean;
+  open?: boolean;
+  onToggle?: () => void;
   onSubmitOffer: (terms: {
     totalCents: number;
     longTermAmountCents?: number | null;
     longTermCadence?: string;
     longTermNotes?: string | null;
     milestoneDueDates?: Array<string | null>;
+    milestoneDeliverables?: DeliverableSpec[];
   }) => void;
   onReviseOffer: (terms: {
     totalCents: number;
@@ -57,6 +66,7 @@ interface OffersPanelProps {
     longTermCadence?: string;
     longTermNotes?: string | null;
     milestoneDueDates?: Array<string | null>;
+    milestoneDeliverables?: DeliverableSpec[];
   }) => void;
   onWithdrawOffer: () => void;
   onSelectOffer: (offerId: string) => void;
@@ -69,11 +79,13 @@ interface OffersPanelProps {
       longTermCadence?: string;
       longTermNotes?: string | null;
       milestoneDueDates?: Array<string | null>;
+      milestoneDeliverables?: DeliverableSpec[];
     },
   ) => void;
   onMarkOfferFinal: (offerId: string) => void;
   onAcceptOffer: (offerId: string) => void;
   defaultTotalCents?: number;
+  defaultDeliverableKind?: DeliverableKind;
 }
 
 function fmt(cents: number) {
@@ -99,6 +111,8 @@ function TermSheet({
   initialLongTermCadence,
   initialLongTermNotes,
   initialDueDates,
+  initialDeliverables,
+  defaultDeliverableKind = "WEB_LINK",
   submitLabel,
   onSubmit,
   disabled,
@@ -110,6 +124,8 @@ function TermSheet({
   initialLongTermCadence?: string | null;
   initialLongTermNotes?: string | null;
   initialDueDates?: Array<string | null>;
+  initialDeliverables?: Array<DeliverableSpec | null>;
+  defaultDeliverableKind?: DeliverableKind;
   submitLabel: string;
   onSubmit: (terms: {
     totalCents: number;
@@ -117,6 +133,7 @@ function TermSheet({
     longTermCadence?: string;
     longTermNotes?: string | null;
     milestoneDueDates?: Array<string | null>;
+    milestoneDeliverables?: DeliverableSpec[];
   }) => void;
   disabled?: boolean;
   allowDueDates?: boolean;
@@ -131,6 +148,18 @@ function TermSheet({
     const base = initialDueDates ?? [null, null, null];
     return [0, 1, 2].map((i) => toDateInput(base[i]));
   });
+  const [deliverableDrafts, setDeliverableDrafts] = useState<
+    Array<{ kind: DeliverableKind; label: string; notes: string }>
+  >(() =>
+    [0, 1, 2].map((i) => {
+      const existing = initialDeliverables?.[i] ?? null;
+      return {
+        kind: existing?.kind ?? defaultDeliverableKind,
+        label: existing?.label ?? "",
+        notes: existing?.notes ?? "",
+      };
+    }),
+  );
 
   const totalCents = Math.round(Number(total) * 100);
   const milestones = useMemo(
@@ -210,6 +239,61 @@ function TermSheet({
             </div>
           </div>
         ) : null}
+        <div className="space-y-2">
+          <div className="space-y-0.5">
+            <span className="text-xs text-muted-foreground">Deliverable per milestone</span>
+            <p className="text-xs text-muted-foreground">
+              What the client will review at each stage. Pre-filled from the project type — adjust
+              if a milestone differs.
+            </p>
+          </div>
+          <div className="space-y-2 rounded-md border p-2">
+            {buildMilestones(totalCents > 0 ? totalCents : initialTotalCents).map((m, i) => (
+              <div key={m.title} className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium">{m.title}</span>
+                  <select
+                    className="h-8 max-w-[60%] rounded-md border bg-background px-2 text-xs"
+                    value={deliverableDrafts[i]?.kind ?? defaultDeliverableKind}
+                    onChange={(e) => {
+                      const next = [...deliverableDrafts];
+                      next[i] = { ...next[i], kind: e.target.value as DeliverableKind };
+                      setDeliverableDrafts(next);
+                    }}
+                  >
+                    {(Object.keys(DELIVERABLE_KIND_LABELS) as DeliverableKind[]).map((kind) => (
+                      <option key={kind} value={kind}>
+                        {DELIVERABLE_KIND_LABELS[kind]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {deliverableDrafts[i]?.kind === "OTHER" ? (
+                  <Input
+                    className="h-8 text-xs"
+                    value={deliverableDrafts[i]?.label ?? ""}
+                    onChange={(e) => {
+                      const next = [...deliverableDrafts];
+                      next[i] = { ...next[i], label: e.target.value };
+                      setDeliverableDrafts(next);
+                    }}
+                    placeholder="Describe the deliverable kind (e.g. firmware image)"
+                  />
+                ) : null}
+                <Input
+                  className="h-8 text-xs"
+                  value={deliverableDrafts[i]?.notes ?? ""}
+                  onChange={(e) => {
+                    const next = [...deliverableDrafts];
+                    next[i] = { ...next[i], notes: e.target.value };
+                    setDeliverableDrafts(next);
+                  }}
+                  placeholder="Review focus / acceptance hint (optional)"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
         <Button
           className="w-full"
           disabled={disabled || !(Number.isFinite(totalCents) && totalCents > 0)}
@@ -221,6 +305,13 @@ function TermSheet({
               longTermCadence: ltCadence,
               longTermNotes: ltNotes.trim() || null,
               milestoneDueDates: dueDates.map((d) => (d ? new Date(d).toISOString() : null)),
+              milestoneDeliverables: deliverableDrafts.map((draft) => ({
+                kind: draft.kind,
+                ...(draft.kind === "OTHER" && draft.label.trim()
+                  ? { label: draft.label.trim() }
+                  : {}),
+                ...(draft.notes.trim() ? { notes: draft.notes.trim() } : {}),
+              })),
             })
           }
         >
@@ -239,6 +330,8 @@ export function OffersPanel({
   offers,
   probationary,
   builderAtCapacity = false,
+  open = false,
+  onToggle,
   onSubmitOffer,
   onReviseOffer,
   onWithdrawOffer,
@@ -248,11 +341,11 @@ export function OffersPanel({
   onMarkOfferFinal,
   onAcceptOffer,
   defaultTotalCents = 100000,
+  defaultDeliverableKind = "WEB_LINK",
 }: OffersPanelProps) {
   const myOffer = offers.find((o) => o.builderId === userId);
   const selectedOffer = offers.find((o) => o.id === selectedOfferId) ?? null;
   const [editingTerms, setEditingTerms] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
 
   // Negotiation-scoped: collapsible panel only during OPEN_FOR_BIDS (above composer).
@@ -273,15 +366,15 @@ export function OffersPanel({
   })();
 
   return (
-    <div className="space-y-3 border-t border-border/60 -mx-3 px-3 py-3">
+    <div className="relative -mx-3 border-t border-border/60 px-3 py-3">
       <button
         type="button"
         className="flex w-full items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-left hover:bg-muted/50"
-        onClick={() => setIsExpanded((v) => !v)}
-        aria-expanded={isExpanded}
+        onClick={onToggle}
+        aria-expanded={open}
       >
         <div className="flex min-w-0 items-center gap-2">
-          {isExpanded ? (
+          {open ? (
             <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
           ) : (
             <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -293,12 +386,12 @@ export function OffersPanel({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {selectedOfferId ? <Badge variant="secondary">Negotiation</Badge> : null}
-          <span className="text-xs text-muted-foreground">{isExpanded ? "Collapse" : "Expand"}</span>
+          <span className="text-xs text-muted-foreground">{open ? "Collapse" : "Expand"}</span>
         </div>
       </button>
 
-      {isExpanded ? (
-        <div className="space-y-3">
+      {open ? (
+        <div className="absolute bottom-full left-0 right-0 z-30 mb-2 max-h-[min(60vh,28rem)] space-y-3 overflow-y-auto rounded-md border bg-background p-3 shadow-lg">
       {role === "BUILDER" ? (
         !myOffer ? (
           builderAtCapacity ? (
@@ -310,6 +403,7 @@ export function OffersPanel({
             <TermSheet
               title="Submit your offer (one per project)"
               initialTotalCents={defaultTotalCents}
+              defaultDeliverableKind={defaultDeliverableKind}
               submitLabel="Submit offer"
               onSubmit={onSubmitOffer}
             />
@@ -328,6 +422,8 @@ export function OffersPanel({
                 initialLongTermCadence={myOffer.longTermCadence}
                 initialLongTermNotes={myOffer.longTermNotes}
                 initialDueDates={myOffer.milestonesSnapshot?.map((m) => m.dueDate ?? null)}
+                initialDeliverables={myOffer.milestonesSnapshot?.map((m) => m.deliverable ?? null)}
+                defaultDeliverableKind={defaultDeliverableKind}
                 submitLabel="Save revision"
                 onSubmit={(t) => {
                   onReviseOffer(t);
@@ -421,6 +517,8 @@ export function OffersPanel({
                   initialLongTermCadence={selectedOffer.longTermCadence}
                   initialLongTermNotes={selectedOffer.longTermNotes}
                   initialDueDates={selectedOffer.milestonesSnapshot?.map((m) => m.dueDate ?? null)}
+                  initialDeliverables={selectedOffer.milestonesSnapshot?.map((m) => m.deliverable ?? null)}
+                  defaultDeliverableKind={defaultDeliverableKind}
                   submitLabel="Save terms"
                   onSubmit={(t) => {
                     onUpdateOfferTerms(selectedOffer.id, t);

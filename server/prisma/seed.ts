@@ -1,9 +1,10 @@
 import { PrismaClient } from "@prisma/client";
+import { defaultDeliverableSpec, type DeliverableKind } from "../src/lib/deliverables.js";
 import { hashPassword } from "../src/lib/password.js";
 
 const prisma = new PrismaClient();
 
-function snapshot(totalCents: number) {
+function snapshot(totalCents: number, kind: DeliverableKind = "WEB_LINK") {
   const initial = Math.round((totalCents * 30) / 100);
   const finalDemo = Math.round((totalCents * 40) / 100);
   const deployment = totalCents - initial - finalDemo;
@@ -12,7 +13,11 @@ function snapshot(totalCents: number) {
     { stageNumber: 2, title: "Final Demo", amount: finalDemo, releasePercent: 40 },
     { stageNumber: 3, title: "Deployment", amount: deployment, releasePercent: 30 },
   ];
-  return rows.map((r) => ({ ...r, dueDate: null as string | null }));
+  return rows.map((r) => ({
+    ...r,
+    dueDate: null as string | null,
+    deliverable: defaultDeliverableSpec(kind),
+  }));
 }
 
 async function main() {
@@ -131,9 +136,9 @@ async function main() {
       builderId: builderUser.id,
       milestones: {
         create: [
-          { id: "milestone-9", stageNumber: 1, title: "Initial Demo", amount: 24000, releasePercent: 30, status: "IN_PROGRESS" },
-          { id: "milestone-10", stageNumber: 2, title: "Final Demo", amount: 32000, releasePercent: 40, status: "PLANNED" },
-          { id: "milestone-11", stageNumber: 3, title: "Deployment", amount: 24000, releasePercent: 30, status: "PLANNED" },
+          { id: "milestone-9", stageNumber: 1, title: "Initial Demo", amount: 24000, releasePercent: 30, status: "IN_PROGRESS", deliverableSpec: defaultDeliverableSpec("MOBILE_BUILD") as any },
+          { id: "milestone-10", stageNumber: 2, title: "Final Demo", amount: 32000, releasePercent: 40, status: "PLANNED", deliverableSpec: defaultDeliverableSpec("MOBILE_BUILD") as any },
+          { id: "milestone-11", stageNumber: 3, title: "Deployment", amount: 24000, releasePercent: 30, status: "PLANNED", deliverableSpec: defaultDeliverableSpec("MOBILE_BUILD") as any },
         ],
       },
     },
@@ -145,7 +150,7 @@ async function main() {
       builderId: builderUser.id,
       status: "ACCEPTED",
       totalCents: 80000,
-      milestonesSnapshot: snapshot(80000) as any,
+      milestonesSnapshot: snapshot(80000, "MOBILE_BUILD") as any,
       longTermAmountCents: 3000,
       longTermCadence: "MONTHLY",
       longTermNotes: "Basic support (informational).",

@@ -147,6 +147,7 @@ model Milestone {
   revisionRequestedAt  DateTime?
   revisionReason       String?
   currentDemoMessageId String?
+  deliverableSpec      Json?
   project              Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   payments             Payment[]
   createdAt            DateTime        @default(now())
