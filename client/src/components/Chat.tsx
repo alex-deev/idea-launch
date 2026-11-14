@@ -198,10 +198,8 @@ export function Chat({
     return () => container.removeEventListener("scroll", updateVisibility);
   }, [messages, offers, projectStatus]);
 
-  const latestScopePayload = [...messages]
-    .reverse()
-    .find((message) => message.type === "SCOPE_WIDGET")
-    ?.payload as ScopePayload | undefined;
+  const latestScopeMessage = [...messages].reverse().find((message) => message.type === "SCOPE_WIDGET");
+  const latestScopePayload = latestScopeMessage?.payload as ScopePayload | undefined;
 
   const scopeTotalCents =
     (typeof latestScopePayload?.budgetCents === "number" && latestScopePayload.budgetCents > 0
@@ -459,6 +457,75 @@ export function Chat({
       longTermNotes: null,
     };
   })();
+
+  const isScopingTakeover = projectStatus === "SCOPING";
+
+  if (isScopingTakeover) {
+    return (
+      <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-border/60">
+        <Card size="sm" className="flex min-h-0 flex-1 flex-col gap-0 overflow-visible ring-0 py-0">
+          <CardHeader className="shrink-0 !flex items-center justify-between border-b border-border/60 pt-2">
+            <div className="flex w-full items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <CardTitle className="truncate">
+                  {project?.title ?? `Project ${projectId}`}
+                </CardTitle>
+                <Badge variant="secondary" className="shrink-0">Scoping</Badge>
+              </div>
+              <div className="flex items-center gap-1">
+                {onClose ? (
+                  <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close project card" title="Close card">
+                    <X className="h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="relative flex min-h-0 flex-1 flex-col gap-0 overflow-hidden">
+            <div className="relative min-h-0 flex-1">
+              <div className="absolute inset-0 overflow-y-auto p-4">
+                <div className="mx-auto flex min-h-full w-full max-w-xl items-start justify-center">
+                  {showIntakeForm ? (
+                    <div className="w-full">
+                      <ScopeIntakeForm
+                        projectId={projectId}
+                        userId={userId}
+                        socket={socketRef.current}
+                        projectTotal={project?.totalEscrow ?? 0}
+                      />
+                    </div>
+                  ) : latestScopeMessage ? (
+                    <div className="w-full">
+                      <ScopeWidget
+                        socket={socketRef.current}
+                        projectId={projectId}
+                        role={role}
+                        payload={latestScopePayload}
+                        messageId={latestScopeMessage.id}
+                        editable={projectStatus === "SCOPING"}
+                        totalCents={scopeTotalCents || project?.totalEscrow || undefined}
+                        openBidsCount={clientOpenBidsCount}
+                        openBidsLimit={clientOpenBidsLimit}
+                        openBidProjects={clientOpenBidProjects}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <p className="text-muted-foreground">
+                        {role === "BUILDER"
+                          ? "The client is currently scoping this project. You will be able to submit offers once it is published."
+                          : "Waiting for scope generation..."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-border/60">

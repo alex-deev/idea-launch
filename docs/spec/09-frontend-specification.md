@@ -19,6 +19,7 @@
 - No auto-selection of a project; right panel stays empty until selection.
 
 ### 9.3 `Chat.tsx` / project view
+- **Scoping takeover (SCOPING phase):** when `projectStatus === "SCOPING"`, the right panel renders a dedicated full-panel scoping surface (no chat-card chrome) that fills the right section. Shows the `ScopeIntakeForm` initially (for the client) and then the `ScopeWidget` blueprint as the primary surface for review/edit/approve; builders/non-clients see a clear “scoping in progress” state. Transitions to the standard chat/offers panel once the project is published (`OPEN_FOR_BIDS`+).
 - Connects via Socket.io with `auth: { userId }`; uses `API_URL`/`SOCKET_URL` from `client/src/lib/api.ts`.
 - Emits `join_project` on selection; subscribes to `new_message`, `project_updated`, `milestone_updated`, and `offers_updated`.
 - Replays message history and current offer/selection state on join. `milestone_updated` is treated as milestone/project state sync (merged into local project milestones); user-facing milestone notifications come from persisted `SYSTEM` `new_message` events (not synthesized client-side).

@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Input } from "@/components/ui/input";
 
 interface ScopeIntakeFormProps {
@@ -61,12 +61,11 @@ export function ScopeIntakeForm({
   };
 
   return (
-    <Card className="w-full max-w-2xl shrink-0">
-      <CardHeader>
-        <CardTitle>Project Intake</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-4" onSubmit={handleSubmit}>
+    <div className="w-full max-w-2xl shrink-0">
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold">Project Intake</h2>
+      </div>
+      <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <label className="text-sm font-medium">Project idea</label>
             <textarea
@@ -138,7 +137,6 @@ export function ScopeIntakeForm({
             {isSubmitting ? "Refining..." : "Refine with AI"}
           </Button>
         </form>
-      </CardContent>
-    </Card>
+    </div>
   );
 }
