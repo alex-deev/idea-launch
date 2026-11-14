@@ -66,16 +66,22 @@ export function DemoWidget({
   const isCurrent =
     !!milestone?.currentDemoMessageId && milestone.currentDemoMessageId === messageId;
   const status = milestone?.status ?? "IN_PROGRESS";
-  const isDemoReviewMilestone =
-    milestone?.title === "Initial Demo" || milestone?.title === "Final Demo";
+  const isReviewableMilestone =
+    milestone?.title === "Initial Demo" ||
+    milestone?.title === "Final Demo" ||
+    milestone?.title === "Deployment";
+  const isDeployment = milestone?.title === "Deployment";
   const canReview =
-    role === "CLIENT" && isCurrent && isDemoReviewMilestone && status === "IN_PROGRESS";
+    role === "CLIENT" && isCurrent && isReviewableMilestone && status === "IN_PROGRESS";
   const isChangesRequested = isCurrent && status === "CHANGES_REQUESTED";
   const isApproved = isCurrent && (status === "RELEASED" || status === "COMPLETED");
   const statusBadge = !isCurrent
     ? { label: "Previous submission", variant: "outline" as const }
     : isChangesRequested
-      ? { label: "Changes requested", variant: "destructive" as const }
+      ? {
+          label: isDeployment ? "Adjustment requested" : "Changes requested",
+          variant: "destructive" as const,
+        }
       : isApproved
         ? { label: "Approved", variant: "default" as const }
         : { label: "Awaiting review", variant: "secondary" as const };
@@ -223,7 +229,9 @@ export function DemoWidget({
 
         {isChangesRequested ? (
           <div className="space-y-1 rounded-md border border-destructive/30 bg-destructive/5 p-2">
-            <p className="font-medium text-destructive">Changes requested</p>
+            <p className="font-medium text-destructive">
+              {isDeployment ? "Adjustment requested" : "Changes requested"}
+            </p>
             {milestone?.revisionReason ? <p>{milestone.revisionReason}</p> : null}
             {revisionTiming ? (
               <p className={revisionTiming.overdue ? "text-destructive" : "text-muted-foreground"}>
@@ -239,11 +247,15 @@ export function DemoWidget({
               <Input
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Reason for requesting changes (required, call out target(s))"
+                placeholder={
+                  isDeployment
+                    ? "Reason for requesting adjustment (required, call out target(s))"
+                    : "Reason for requesting changes (required, call out target(s))"
+                }
               />
               <div className="flex gap-2">
                 <Button className="flex-1" variant="destructive" onClick={handleReject} disabled={!reason.trim()}>
-                  Submit rejection
+                  {isDeployment ? "Submit request" : "Submit rejection"}
                 </Button>
                 <Button
                   className="flex-1"
@@ -263,7 +275,7 @@ export function DemoWidget({
                 Approve bundle
               </Button>
               <Button className="flex-1" variant="outline" onClick={() => setRejecting(true)}>
-                Request changes
+                {isDeployment ? "Request adjustment" : "Request changes"}
               </Button>
             </div>
           )

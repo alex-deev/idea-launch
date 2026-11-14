@@ -407,11 +407,13 @@ export function initializeSocket(httpServer: HttpServer) {
           return;
         }
 
-        const isDemoReviewMilestone =
-          milestone.title === "Initial Demo" || milestone.title === "Final Demo";
+        const isReviewableMilestone =
+          milestone.title === "Initial Demo" ||
+          milestone.title === "Final Demo" ||
+          milestone.title === "Deployment";
         const isResubmission = milestone.status === ("CHANGES_REQUESTED" as any);
         const requiresChangeNote = isResubmission || !!milestone.currentDemoMessageId;
-        if (isResubmission && !isDemoReviewMilestone) {
+        if (isResubmission && !isReviewableMilestone) {
           ack?.({
             ok: false,
             error: "Changes-requested resubmission is only supported for demo milestones",
@@ -502,7 +504,14 @@ export function initializeSocket(httpServer: HttpServer) {
               projectId: data.projectId,
               senderId,
               type: "SYSTEM" as any,
-              content: revisionOverdue ? "Demo resubmitted (overdue)" : "Demo resubmitted",
+              content:
+                milestone.title === "Deployment"
+                  ? revisionOverdue
+                    ? "Deployment resubmitted (overdue)"
+                    : "Deployment resubmitted"
+                  : revisionOverdue
+                    ? "Demo resubmitted (overdue)"
+                    : "Demo resubmitted",
             },
           });
           io.to(data.projectId).emit("new_message", sys);
@@ -547,12 +556,14 @@ export function initializeSocket(httpServer: HttpServer) {
           ack?.({ ok: false, error: "Demos can only be reviewed for active projects" });
           return;
         }
-        const isDemoReviewMilestone =
-          milestone.title === "Initial Demo" || milestone.title === "Final Demo";
-        if (!isDemoReviewMilestone) {
+        const isReviewableMilestone =
+          milestone.title === "Initial Demo" ||
+          milestone.title === "Final Demo" ||
+          milestone.title === "Deployment";
+        if (!isReviewableMilestone) {
           ack?.({
             ok: false,
-            error: "Demo review is only available for Initial and Final Demo milestones",
+            error: "Review is only available for submitted demo/deployment milestones",
           });
           return;
         }
@@ -585,7 +596,10 @@ export function initializeSocket(httpServer: HttpServer) {
             projectId: project.id,
             senderId: actorId,
             type: "SYSTEM" as any,
-            content: `Changes requested: ${reason}`,
+            content:
+              milestone.title === "Deployment"
+                ? `Adjustment requested: ${reason}`
+                : `Changes requested: ${reason}`,
           },
         });
         io.to(project.id).emit("new_message", sys);
@@ -621,11 +635,13 @@ export function initializeSocket(httpServer: HttpServer) {
           ack?.({ ok: false, error: "Cannot approve a demo while changes are requested" });
           return;
         }
-        const isDemoReviewMilestone =
-          milestoneRow.title === "Initial Demo" || milestoneRow.title === "Final Demo";
-        if (isDemoReviewMilestone) {
+        const isReviewableMilestone =
+          milestoneRow.title === "Initial Demo" ||
+          milestoneRow.title === "Final Demo" ||
+          milestoneRow.title === "Deployment";
+        if (isReviewableMilestone) {
           if (milestoneRow.status !== "IN_PROGRESS" || !milestoneRow.currentDemoMessageId) {
-            ack?.({ ok: false, error: "Only the current submitted demo can be approved" });
+            ack?.({ ok: false, error: "Only the current submitted deliverable can be approved" });
             return;
           }
         }
