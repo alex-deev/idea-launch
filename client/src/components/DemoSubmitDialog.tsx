@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   PLATFORM_TARGET_LABELS,
@@ -146,16 +146,18 @@ export function DemoSubmitDialog({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <Card className="max-h-[90vh] w-full max-w-2xl overflow-y-auto">
-        <CardHeader className="sticky top-0 z-10 flex-row items-center justify-between gap-2 bg-card pb-2">
-          <CardTitle className="text-base">
+      <Card className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden">
+        <CardHeader className="shrink-0 items-center gap-2 border-b bg-card pb-2">
+          <CardTitle className="truncate text-base">
             {isResubmission ? "Resubmit" : "Submit"} {milestoneTitle}
           </CardTitle>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close submission form">
-            <X className="h-4 w-4" />
-          </Button>
+          <CardAction>
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close submission form">
+              <X className="h-4 w-4" />
+            </Button>
+          </CardAction>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm">
+        <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm">
           <div className="rounded-md border bg-muted/30 p-2">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline">Agreed contract</Badge>
