@@ -195,7 +195,7 @@ export function DemoWidget({
 
         {current && currentTarget ? (
           <div className="space-y-3">
-            {d.title ? <Badge variant="secondary">{String(d.title)}</Badge> : null}
+            {d.title ? <p className="font-medium">{String(d.title)}</p> : null}
 
             {d.accessUrl ? (
               <a
