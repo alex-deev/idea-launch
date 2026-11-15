@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { io, type Socket } from "socket.io-client";
 
-import { ArrowDown, FileText, MoreVertical, X } from "lucide-react";
+import { ArrowDown, FileText, MoreVertical, ScrollText, X } from "lucide-react";
 import { inferPlatformTargetsFromScope } from "@/lib/deliverables";
 import { buildMilestones, sumMilestoneAmounts } from "@/lib/milestones";
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +93,7 @@ export function Chat({
 
   const [controlsOpen, setControlsOpen] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [headerScopeOpen, setHeaderScopeOpen] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -201,6 +202,7 @@ export function Chat({
 
   const latestScopeMessage = [...messages].reverse().find((message) => message.type === "SCOPE_WIDGET");
   const latestScopePayload = latestScopeMessage?.payload as ScopePayload | undefined;
+  const showHeaderScopeButton = !!latestScopeMessage && projectStatus !== "SCOPING";
 
   const scopeTotalCents =
     (typeof latestScopePayload?.budgetCents === "number" && latestScopePayload.budgetCents > 0
@@ -570,6 +572,18 @@ export function Chat({
               ) : null}
             </div>
             <div className="flex items-center gap-1">
+              {showHeaderScopeButton ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setHeaderScopeOpen((v) => !v)}
+                  aria-label="Project description"
+                  aria-expanded={headerScopeOpen}
+                  title="Project description"
+                >
+                  <ScrollText className="h-4 w-4" />
+                </Button>
+              ) : null}
               {showHeaderTermsButton ? (
                 <Button
                   variant="ghost"
@@ -625,55 +639,61 @@ export function Chat({
               </div>
             </div>
           ) : (
-            <div className="relative min-h-0 flex-1">
-              <div ref={messagesContainerRef} className="absolute inset-0 space-y-3 overflow-y-auto rounded-md p-3">
-                {messages.map((message) => {
-                  const isOwnMessage = message.senderId === userId;
+            <>
+               <div className="relative min-h-0 flex-1">
+                <div ref={messagesContainerRef} className="absolute inset-0 space-y-3 overflow-y-auto rounded-md p-3">
+                  {messages.map((message) => {
+                    const isOwnMessage = message.senderId === userId;
 
-                  // Offer-driven workflow: ignore legacy WIDGET offer messages.
-                  if (message.type === "WIDGET") {
-                    return null;
-                  }
+                    // Offer-driven workflow: ignore legacy WIDGET offer messages.
+                    if (message.type === "WIDGET") {
+                      return null;
+                    }
 
-                  if (message.type === "DEMO_WIDGET") {
-                    const payload = (message.payload ?? {}) as DemoPayload;
-                    const milestoneId = payload.milestoneId ?? "milestone-1";
-                    const milestone = (project?.milestones ?? []).find((m: any) => m.id === milestoneId) ?? null;
-                    return (
-                      <div key={message.id} className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
-                        <DemoWidget
-                          socket={socketRef.current}
-                          projectId={projectId}
-                          userId={userId}
-                          role={role}
-                          messageId={message.id}
-                          milestoneId={milestoneId}
-                          payload={payload}
-                          milestone={milestone}
-                        />
-                      </div>
-                    );
-                  }
+                    // Skip SCOPE_WIDGET in messages list when accessible via header button (to avoid duplication)
+                    if (message.type === "SCOPE_WIDGET" && showHeaderScopeButton) {
+                      return null;
+                    }
 
-                  if (message.type === "SCOPE_WIDGET") {
-                    const payload = (message.payload ?? {}) as ScopePayload;
-                    return (
-                      <div key={message.id} className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
-                        <ScopeWidget
-                          socket={socketRef.current}
-                          projectId={projectId}
-                          role={role}
-                          payload={payload}
-                          messageId={message.id}
-                          editable={projectStatus === "SCOPING"}
-                          totalCents={scopeTotalCents || project?.totalEscrow || undefined}
-                          openBidsCount={clientOpenBidsCount}
-                          openBidsLimit={clientOpenBidsLimit}
-                          openBidProjects={clientOpenBidProjects}
-                        />
-                      </div>
-                    );
-                  }
+                    if (message.type === "DEMO_WIDGET") {
+                      const payload = (message.payload ?? {}) as DemoPayload;
+                      const milestoneId = payload.milestoneId ?? "milestone-1";
+                      const milestone = (project?.milestones ?? []).find((m: any) => m.id === milestoneId) ?? null;
+                      return (
+                        <div key={message.id} className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+                          <DemoWidget
+                            socket={socketRef.current}
+                            projectId={projectId}
+                            userId={userId}
+                            role={role}
+                            messageId={message.id}
+                            milestoneId={milestoneId}
+                            payload={payload}
+                            milestone={milestone}
+                          />
+                        </div>
+                      );
+                    }
+
+                    if (message.type === "SCOPE_WIDGET") {
+                      const payload = (message.payload ?? {}) as ScopePayload;
+                      return (
+                        <div key={message.id} className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+                          <ScopeWidget
+                            socket={socketRef.current}
+                            projectId={projectId}
+                            role={role}
+                            payload={payload}
+                            messageId={message.id}
+                            editable={projectStatus === "SCOPING"}
+                            totalCents={scopeTotalCents || project?.totalEscrow || undefined}
+                            openBidsCount={clientOpenBidsCount}
+                            openBidsLimit={clientOpenBidsLimit}
+                            openBidProjects={clientOpenBidProjects}
+                          />
+                        </div>
+                      );
+                    }
 
                   if (message.type === "SYSTEM") {
                     return (
@@ -726,7 +746,8 @@ export function Chat({
                 </Button>
               ) : null}
             </div>
-          )}
+          </>
+        )}
 
           {showOffersBar ? (
             <OffersPanel
@@ -887,6 +908,43 @@ export function Chat({
             </div>
           ) : null}
         </CardContent>
+        {headerScopeOpen && showHeaderScopeButton ? (
+          <div className="absolute inset-0 z-40 flex flex-col bg-background/80 backdrop-blur-[1px]">
+            <div className="mt-12 flex min-h-0 flex-1 flex-col border-t bg-background shadow-lg">
+              <div className="flex items-center justify-between border-b px-4 py-3">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold">Project description</h3>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {project?.title ?? `Project ${projectId}`}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setHeaderScopeOpen(false)}
+                  aria-label="Close description"
+                  title="Close"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                <ScopeWidget
+                  socket={socketRef.current}
+                  projectId={projectId}
+                  role={role}
+                  payload={latestScopePayload}
+                  messageId={latestScopeMessage.id}
+                  editable={false}
+                  totalCents={scopeTotalCents || project?.totalEscrow || undefined}
+                  openBidsCount={clientOpenBidsCount}
+                  openBidsLimit={clientOpenBidsLimit}
+                  openBidProjects={clientOpenBidProjects}
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
         {headerTermsOpen && headerTermsData ? (
           <div className="absolute inset-0 z-40 flex flex-col bg-background/80 backdrop-blur-[1px]">
             <div className="mt-12 flex min-h-0 flex-1 flex-col border-t bg-background shadow-lg">

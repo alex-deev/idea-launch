@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { buildBundleSpec, type PlatformTarget } from "../src/lib/deliverables.js";
 import { hashPassword } from "../src/lib/password.js";
+import { buildMilestones } from "../src/lib/milestones.js";
 
 const prisma = new PrismaClient();
 
@@ -19,6 +20,24 @@ function snapshot(totalCents: number, targets: PlatformTarget[] = ["WEB"]) {
     dueDate: null as string | null,
     deliverable: bundle,
   }));
+}
+
+function scopePayload(title: string, idea: string, budgetCents: number, appKinds: string[] = ["Web app"]) {
+  const milestones = buildMilestones(budgetCents).map((m) => ({
+    title: m.title,
+    amount: m.amount,
+    releasePercent: m.releasePercent,
+  }));
+  return {
+    title,
+    executiveSummary: idea,
+    technicalArchitecture: `Standard architecture for a ${appKinds.join(", ").toLowerCase()} project.`,
+    coreFeatures: ["Core feature 1", "Core feature 2", "Core feature 3"],
+    milestones,
+    outOfScope: ["Out of scope item 1"],
+    budgetCents,
+    appKinds,
+  };
 }
 
 async function main() {
@@ -193,6 +212,37 @@ async function main() {
           { id: "milestone-15", stageNumber: 3, title: "Deployment", amount: 18000, releasePercent: 30, status: "PLANNED", deliverableSpec: webBundle as any },
         ],
       },
+    },
+  });
+
+  // Add SCOPE_WIDGET messages for projects that went through scoping
+  await prisma.message.create({
+    data: {
+      projectId: openProject.id,
+      senderId: clientUser.id,
+      type: "SCOPE_WIDGET" as any,
+      content: "Analytics Dashboard Scope",
+      payload: scopePayload(
+        "Analytics Dashboard",
+        "A web-based analytics dashboard for tracking key business metrics, user behavior, and revenue trends with real-time updates and customizable reports.",
+        150000,
+        ["Web app"],
+      ) as any,
+    },
+  });
+
+  await prisma.message.create({
+    data: {
+      projectId: activeProject.id,
+      senderId: clientUser.id,
+      type: "SCOPE_WIDGET" as any,
+      content: "Mobile Companion App Scope",
+      payload: scopePayload(
+        "Mobile Companion App",
+        "A mobile companion app for on-the-go access to key features, push notifications, and offline data sync.",
+        80000,
+        ["Web app", "Mobile app"],
+      ) as any,
     },
   });
 
