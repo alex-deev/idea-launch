@@ -102,6 +102,12 @@ export async function fundEscrow(
     );
   }
 
+  // Resolve the client's default mock payment method on file.
+  const paymentMethod = await prisma.paymentMethod.findFirst({
+    where: { userId: project.clientId, isDefault: true },
+    orderBy: { createdAt: "desc" },
+  });
+
   const existing = await prisma.payment.findFirst({
     where: {
       projectId,
@@ -117,13 +123,29 @@ export async function fundEscrow(
     orderBy: { createdAt: "desc" },
   });
 
-  if (existing) {
+  if (existing && existing.status === PaymentStatus.SUCCEEDED) {
     return {
       payment: existing,
       project,
       clientSecret: existing.clientSecret,
-      alreadyFunded: existing.status === PaymentStatus.SUCCEEDED,
+      alreadyFunded: true,
     };
+  }
+
+  if (!paymentMethod) {
+    const pmPayment = await prisma.payment.create({
+      data: {
+        projectId,
+        provider: "mock",
+        type: PaymentType.ESCROW_FUNDING,
+        status: PaymentStatus.REQUIRES_PAYMENT_METHOD,
+        providerRef: `pm_required_${projectId}_${Date.now()}`,
+        amount: 0,
+        currency: process.env.STRIPE_CURRENCY ?? "usd",
+        metadata: { reason: "no_payment_method_on_file" } as any,
+      },
+    });
+    throw new EscrowError("A payment method is required to fund escrow", 402);
   }
 
   const amount = resolveEscrowAmount(project, amountCents);
@@ -134,15 +156,35 @@ export async function fundEscrow(
     );
   }
 
-  const intent = await getPaymentProvider().createEscrowPaymentIntent({
-    projectId,
-    amountCents: amount,
-    currency: process.env.STRIPE_CURRENCY ?? "usd",
-  });
+  let intent;
+  try {
+    intent = await getPaymentProvider().createEscrowPaymentIntent({
+      projectId,
+      amountCents: amount,
+      currency: process.env.STRIPE_CURRENCY ?? "usd",
+      metadata: { paymentMethodId: paymentMethod.id },
+    });
+  } catch (error) {
+    await prisma.payment.create({
+      data: {
+        projectId,
+        paymentMethodId: paymentMethod.id,
+        provider: "mock",
+        type: PaymentType.ESCROW_FUNDING,
+        status: PaymentStatus.FAILED,
+        providerRef: `failed_${projectId}_${Date.now()}`,
+        amount,
+        currency: process.env.STRIPE_CURRENCY ?? "usd",
+        metadata: { error: (error as Error).message, paymentMethodId: paymentMethod.id } as any,
+      },
+    });
+    throw error;
+  }
 
   const payment = await prisma.payment.create({
     data: {
       projectId,
+      paymentMethodId: paymentMethod.id,
       provider: intent.provider,
       type: PaymentType.ESCROW_FUNDING,
       status: toPaymentStatus(intent.status),
@@ -150,7 +192,7 @@ export async function fundEscrow(
       amount: intent.amount,
       currency: intent.currency,
       clientSecret: intent.clientSecret,
-      metadata: intent.metadata,
+      metadata: { ...(intent.metadata ?? {}), paymentMethodId: paymentMethod.id, brand: paymentMethod.brand ?? "", last4: paymentMethod.last4 ?? "" },
     },
   });
 

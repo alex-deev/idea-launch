@@ -19,7 +19,7 @@
 | Extension | +48 hours, requested flag only, post-acceptance (`ACTIVE`) flow; no approval flow. |
 | Quality rating | Integer 1–5 after `COMPLETED` or `CANCELLED`, one score per project. |
 | Milestone payout | `approve_milestone` releases via escrow: milestone amounts transfer (mock auto-pay, real Stripe may stay pending). Project completes when all 3 milestones are released. |
-| Payments | No webhooks yet; funding/payout status set synchronously by provider call. |
+| Payments | No webhooks yet; funding/payout status set synchronously by provider call. Client escrow funding uses a **mock card-on-file** captured at client signup (PCI-safe: token + brand/last4/exp only; no PAN/CVC). Funding failure leaves the project in a retryable funding-pending state; Accept & Fund can be retried. Mock hold succeeds immediately and activates the project (auto-capture in mock mode). |
 | Completion | Automatic when all milestones are `RELEASED`/`COMPLETED`. |
 
 ---

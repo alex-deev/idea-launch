@@ -84,6 +84,7 @@ export function Chat({
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [acceptingOfferId, setAcceptingOfferId] = useState<string | null>(null);
 
   const showIntakeForm =
     role === "CLIENT" &&
@@ -824,11 +825,21 @@ export function Chat({
                       <div className="flex flex-row flex-wrap gap-2 pt-2">
                         <Button
                           size="sm"
-                          onClick={() => emitAck("accept_offer", { projectId, offerId: selectedOffer.id, clientId: userId })}
-                          disabled={Boolean(probationary && selectedOffer.totalCents > 150000)}
+                          onClick={() => {
+                            setAcceptingOfferId(selectedOffer.id);
+                            emitAck("accept_offer", { projectId, offerId: selectedOffer.id, clientId: userId });
+                            // Reset after a short delay; project state updates via socket.
+                            window.setTimeout(() => setAcceptingOfferId(null), 1500);
+                          }}
+                          disabled={
+                            Boolean(probationary && selectedOffer.totalCents > 150000) ||
+                            acceptingOfferId === selectedOffer.id
+                          }
                           title={probationary && selectedOffer.totalCents > 150000 ? "Exceeds probationary cap" : undefined}
                         >
-                          Accept &amp; Fund
+                          {acceptingOfferId === selectedOffer.id
+                            ? "Drafting funds…"
+                            : "Accept & Fund"}
                         </Button>
                         <Button size="sm" variant="destructive" onClick={() => emitAck("cancel_negotiation", { projectId, clientId: userId })}>
                           Cancel negotiation

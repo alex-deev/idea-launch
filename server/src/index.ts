@@ -118,6 +118,11 @@ app.get("/api/me", async (req, res) => {
       rulesAccepted: true,
       ecosystems: true,
       portfolioUrls: true,
+      paymentMethods: {
+        where: { isDefault: true },
+        select: { brand: true, last4: true, expMonth: true, expYear: true, provider: true },
+        take: 1,
+      },
     },
   });
 

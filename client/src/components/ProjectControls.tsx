@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Socket } from "socket.io-client";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { API_URL } from "@/lib/api";
 
 interface ProjectControlsProps {
   socket: Socket | null;
@@ -14,6 +15,29 @@ interface ProjectControlsProps {
 export function ProjectControls({ socket, project, role, userId }: ProjectControlsProps) {
   const [rating, setRating] = useState<number>(0);
   const [feedback, setFeedback] = useState("");
+  const [cardOnFile, setCardOnFile] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (role !== "CLIENT") return;
+    let cancelled = false;
+    fetch(`${API_URL}/api/me`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const pm = data?.user?.paymentMethods?.[0];
+        if (pm?.last4) {
+          setCardOnFile(`${pm.brand ?? "Card"} •••• ${pm.last4}`);
+        } else {
+          setCardOnFile(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCardOnFile(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [role, userId]);
 
   if (!project) return null;
 
@@ -57,6 +81,19 @@ export function ProjectControls({ socket, project, role, userId }: ProjectContro
             Escrow released: <strong>{releasedPercent}%</strong> (${(releasedAmount / 100).toFixed(2)} / ${((project.totalEscrow ?? 0) / 100).toFixed(2)})
           </span>
         </div>
+        {role === "CLIENT" ? (
+          <p className="text-xs text-muted-foreground">
+            Card on file: {cardOnFile ?? "none (mock)"} — mock payment, no real charge.
+          </p>
+        ) : null}
+        {project.status === "OPEN_FOR_BIDS" && project.acceptedOfferId ? (
+          <p className="text-amber-600">
+            Funding pending — retry “Accept &amp; Fund” to draft escrow (mock).
+          </p>
+        ) : null}
+        {project.status === "ACTIVE" ? (
+          <p className="text-green-600">Funds drafted &amp; held (mock) — escrow funded.</p>
+        ) : null}
 
         {project.deadline ? (
           <p>

@@ -188,6 +188,23 @@ enum MessageType {
 }
 ```
 
+### 5.8b `PaymentMethod` (mock card-on-file)
+
+| Field | Type | Attributes |
+|---|---|---|
+| `id` | String | `@id @default(cuid())` |
+| `userId` | String | FK → `User.id`, `onDelete: Cascade` |
+| `provider` | String | `@default("mock")` |
+| `providerRef` | String | `@unique` — mock token (e.g. `pm_mock_*`); no PAN/CVC stored |
+| `brand` | String? | display only (Visa/Mastercard/…) |
+| `last4` | String? | display only |
+| `expMonth` / `expYear` | Int? | expiry |
+| `isDefault` | Boolean | `@default(true)` |
+| `payments` | Payment[] | |
+| `createdAt` / `updatedAt` | DateTime | `now()` / `@updatedAt` |
+
+`Payment.paymentMethodId` (optional FK) records the method used for an escrow funding attempt. Client signup requires a (mock) payment method; builders are unaffected.
+
 ### 5.9 Seed data (`server/prisma/seed.ts`)
 
 Deletes in dependency order: offers → messages → payments → milestones → projects → sessions → accounts → users, then creates:

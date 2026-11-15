@@ -1303,14 +1303,6 @@ export function initializeSocket(httpServer: HttpServer) {
           ack?.({ ok: false, error: "Only the project client can accept an offer" });
           return;
         }
-        if (project.status !== "OPEN_FOR_BIDS") {
-          ack?.({ ok: false, error: "Offer acceptance is only available for open projects" });
-          return;
-        }
-        if (project.acceptedOfferId) {
-          ack?.({ ok: false, error: "An offer has already been accepted" });
-          return;
-        }
         const offer = await prisma.offer.findUnique({
           where: { id: offerId },
           include: { builder: { select: { id: true, probationary: true } } },
@@ -1319,9 +1311,32 @@ export function initializeSocket(httpServer: HttpServer) {
           ack?.({ ok: false, error: "Offer not found" });
           return;
         }
-        if (project.selectedOfferId !== offerId || offer.status !== "FINAL") {
-          ack?.({ ok: false, error: "Only the selected FINAL offer can be accepted" });
-          return;
+
+        // Retry path: offer already accepted & terms applied, but funding failed/pending.
+        const alreadyAccepted = project.acceptedOfferId === offerId;
+
+        if (!alreadyAccepted) {
+          if (project.status !== "OPEN_FOR_BIDS") {
+            ack?.({ ok: false, error: "Offer acceptance is only available for open projects" });
+            return;
+          }
+          if (project.acceptedOfferId) {
+            ack?.({ ok: false, error: "An offer has already been accepted" });
+            return;
+          }
+          if (project.selectedOfferId !== offerId || offer.status !== "FINAL") {
+            ack?.({ ok: false, error: "Only the selected FINAL offer can be accepted" });
+            return;
+          }
+        } else {
+          if (offer.status !== "ACCEPTED") {
+            ack?.({ ok: false, error: "Offer is not in an accepted state" });
+            return;
+          }
+          if ((project.status as string) === "ACTIVE" || (project.status as string) === "COMPLETED") {
+            ack?.({ ok: false, error: "Project is already funded/active" });
+            return;
+          }
         }
 
         const agreedTotal = offer.totalCents;
@@ -1331,20 +1346,22 @@ export function initializeSocket(httpServer: HttpServer) {
         }
         await ensureBuilderCapacity(offer.builderId, projectId);
 
-        // Apply agreed terms and resolve offers
-        await applyAcceptedOfferTerms(projectId, offer);
-        await prisma.$transaction(async (tx) => {
-          await tx.offer.update({ where: { id: offerId }, data: { status: "ACCEPTED" } });
-          await tx.offer.updateMany({
-            where: {
-              projectId,
-              id: { not: offerId },
-              status: { notIn: ["WITHDRAWN", "REJECTED"] as any },
-            },
-            data: { status: "REJECTED" },
+        if (!alreadyAccepted) {
+          // Apply agreed terms and resolve offers
+          await applyAcceptedOfferTerms(projectId, offer);
+          await prisma.$transaction(async (tx) => {
+            await tx.offer.update({ where: { id: offerId }, data: { status: "ACCEPTED" } });
+            await tx.offer.updateMany({
+              where: {
+                projectId,
+                id: { not: offerId },
+                status: { notIn: ["WITHDRAWN", "REJECTED"] as any },
+              },
+              data: { status: "REJECTED" },
+            });
+            await tx.project.update({ where: { id: projectId }, data: { selectedOfferId: offerId } });
           });
-          await tx.project.update({ where: { id: projectId }, data: { selectedOfferId: offerId } });
-        });
+        }
 
         const result = await fundEscrow(projectId, agreedTotal);
 

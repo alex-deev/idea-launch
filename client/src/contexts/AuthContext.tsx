@@ -16,7 +16,18 @@ interface AuthContextValue {
   user: FakeUser | null;
   isLoading: boolean;
   signIn: (email: string, password: string, role: FakeRole) => Promise<FakeUser>;
-  signUp: (name: string, email: string, password: string, role: FakeRole) => Promise<FakeUser>;
+  signUp: (
+    name: string,
+    email: string,
+    password: string,
+    role: FakeRole,
+    paymentMethod?: {
+      cardNumber: string;
+      expMonth: number;
+      expYear: number;
+      cvc: string;
+    },
+  ) => Promise<FakeUser>;
   signOut: () => Promise<void>;
 }
 
@@ -111,13 +122,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return sessionUser;
   }, []);
 
-  const signUp = useCallback(async (name: string, email: string, password: string, role: FakeRole) => {
-    const response = await fetch(`${API_URL}/api/auth/register`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, role }),
-    });
+  const signUp = useCallback(
+    async (
+      name: string,
+      email: string,
+      password: string,
+      role: FakeRole,
+      paymentMethod?: { cardNumber: string; expMonth: number; expYear: number; cvc: string },
+    ) => {
+      const response = await fetch(`${API_URL}/api/auth/register`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password, role, paymentMethod }),
+      });
 
     if (!response.ok) {
       const data = (await response.json().catch(() => ({}))) as { error?: string };

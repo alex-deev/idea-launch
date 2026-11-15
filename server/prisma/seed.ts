@@ -39,6 +39,17 @@ async function main() {
       email: "client@example.com",
       role: "CLIENT",
       password: hashPassword("password"),
+      paymentMethods: {
+        create: {
+          provider: "mock",
+          providerRef: "pm_mock_seed_client_4242",
+          brand: "Visa",
+          last4: "4242",
+          expMonth: 12,
+          expYear: new Date().getFullYear() + 2,
+          isDefault: true,
+        },
+      },
     },
   });
 

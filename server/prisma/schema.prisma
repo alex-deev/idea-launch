@@ -28,9 +28,10 @@ model User {
   clientProjects  Project[] @relation("ClientProjects")
   builderProjects Project[] @relation("BuilderProjects")
   offers          Offer[]   @relation("BuilderOffers")
-  sentMessages    Message[] @relation("SentMessages")
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  sentMessages    Message[]       @relation("SentMessages")
+  paymentMethods  PaymentMethod[] @relation("UserPaymentMethods")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 }
 
 model Account {
@@ -228,23 +229,43 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id           String        @id @default(cuid())
-  projectId    String
-  milestoneId  String?
-  provider     String
-  type         PaymentType
-  status       PaymentStatus
-  providerRef  String        @unique
-  amount       Int
-  currency     String        @default("usd")
-  clientSecret String?
-  metadata     Json?
-  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  milestone    Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id              String         @id @default(cuid())
+  projectId       String
+  milestoneId     String?
+  paymentMethodId String?
+  provider        String
+  type            PaymentType
+  status          PaymentStatus
+  providerRef     String         @unique
+  amount          Int
+  currency        String         @default("usd")
+  clientSecret    String?
+  metadata        Json?
+  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone       Milestone?     @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([projectId])
   @@index([milestoneId])
   @@index([type, status])
+}
+
+model PaymentMethod {
+  id          String    @id @default(cuid())
+  userId      String
+  provider    String    @default("mock")
+  providerRef String    @unique
+  brand       String?
+  last4       String?
+  expMonth    Int?
+  expYear     Int?
+  isDefault   Boolean   @default(true)
+  user        User      @relation("UserPaymentMethods", fields: [userId], references: [id], onDelete: Cascade)
+  payments    Payment[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
 }
