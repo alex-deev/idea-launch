@@ -181,7 +181,11 @@ function canSendFreeformText(project: any, senderId: string | null) {
   const selected = (project.offers ?? []).find((o: any) => o.id === project.selectedOfferId);
   if (!selected) return false;
   // Pre-funding negotiation chat: only client and selected builder
-  if (senderId === project.clientId && selected.builderId) return true;
+  if (senderId === project.clientId && selected.builderId) {
+    // Block client freeform chat while a final offer is under review
+    if (selected.status === "FINAL") return false;
+    return true;
+  }
   if (senderId === selected.builderId) return true;
   return false;
 }

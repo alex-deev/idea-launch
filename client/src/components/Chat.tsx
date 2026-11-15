@@ -214,7 +214,12 @@ export function Chat({
     projectStatus === "OPEN_FOR_BIDS" &&
     !!selectedOfferId &&
     (role === "CLIENT" || (role === "BUILDER" && selectedOffer?.builderId === userId));
-  const canChat = projectStatus === "ACTIVE" || isNegotiationParticipant;
+  const finalOfferDecisionDock =
+    role === "CLIENT" &&
+    projectStatus === "OPEN_FOR_BIDS" &&
+    !!selectedOfferId &&
+    selectedOffer?.status === "FINAL";
+  const canChat = (projectStatus === "ACTIVE" || isNegotiationParticipant) && !finalOfferDecisionDock;
 
   const myOffer = offers.find((o) => o.builderId === userId) ?? null;
   const acceptedTermsOffer =
@@ -230,6 +235,7 @@ export function Chat({
   const [headerTermsOpen, setHeaderTermsOpen] = useState(false);
   const [unreadWhileOffersOpen, setUnreadWhileOffersOpen] = useState(0);
   const offersAutoKeyRef = useRef<string | null>(null);
+  const finalOfferAutoCollapseRef = useRef<string | null>(null);
   const offersPanelOpenRef = useRef(false);
   const showOffersBarRef = useRef(false);
 
@@ -254,6 +260,18 @@ export function Chat({
     }
     offersAutoKeyRef.current = key;
   }, [showOffersBar, projectId, projectStatus, offersActionNeeded]);
+
+  useEffect(() => {
+    if (!showOffersBar || !finalOfferDecisionDock) {
+      finalOfferAutoCollapseRef.current = null;
+      return;
+    }
+    const key = `${projectId}:${selectedOfferId}:final`;
+    if (finalOfferAutoCollapseRef.current !== key) {
+      setOffersPanelOpen(false);
+      finalOfferAutoCollapseRef.current = key;
+    }
+  }, [showOffersBar, finalOfferDecisionDock, projectId, selectedOfferId]);
 
   useEffect(() => {
     offersPanelOpenRef.current = offersPanelOpen;
@@ -687,6 +705,13 @@ export function Chat({
                 {!showIntakeForm && actionError ? (
                   <p className="pt-2 text-sm text-red-600">{actionError}</p>
                 ) : null}
+                {finalOfferDecisionDock ? (
+                  <div className="flex justify-center">
+                    <span className="max-w-[85%] rounded-full bg-muted px-3 py-1 text-center text-xs font-medium text-muted-foreground shadow-sm">
+                      Messaging paused while reviewing final offer. Accept or cancel negotiation to continue.
+                    </span>
+                  </div>
+                ) : null}
               </div>
               {showScrollToBottom ? (
                 <Button
@@ -708,13 +733,13 @@ export function Chat({
               onToggle={() => setOffersPanelOpen((v) => !v)}
               unreadCount={unreadWhileOffersOpen}
               onJumpToLatest={jumpToLatestFromOffers}
+              compact={finalOfferDecisionDock}
               role={role}
                   userId={userId}
                   projectId={projectId}
                   projectStatus={projectStatus}
                   selectedOfferId={selectedOfferId}
                   offers={offers}
-                  probationary={probationary}
                   builderAtCapacity={builderAtCapacity}
                   defaultTotalCents={scopeTotalCents || project?.totalEscrow || 100000}
                   defaultPlatformTargets={inferPlatformTargetsFromScope(
@@ -731,11 +756,90 @@ export function Chat({
                   }
                   onMarkOfferFinal={(offerId) => emitAck("mark_offer_final", { projectId, offerId, builderId: userId })}
                   onUnfinalizeOffer={(offerId) => emitAck("unfinalize_offer", { projectId, offerId, builderId: userId })}
-                  onAcceptOffer={(offerId) => emitAck("accept_offer", { projectId, offerId, clientId: userId })}
                 />
           ) : null}
 
-          {!showIntakeForm && canChat ? (
+          {finalOfferDecisionDock ? (
+            <div className="flex flex-col gap-2 border-t border-border/60 -mx-3 px-3 py-3">
+              {selectedOffer ? (
+                <div className="space-y-2 rounded-md border bg-background p-2 text-sm">
+                  <div className="flex items-center justify-between font-medium">
+                    <span>Total</span>
+                    <span>${(selectedOffer.totalCents / 100).toFixed(2)}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Milestones
+                      </div>
+                      {(selectedOffer.milestonesSnapshot ?? []).map((m: any) => (
+                        <div key={m.title} className="flex justify-between text-xs">
+                          <span className="min-w-0 truncate">
+                            {m.title}
+                            {m.dueDate ? ` · ${new Date(m.dueDate).toLocaleDateString()}` : ""}
+                          </span>
+                          <span className="shrink-0">${(m.amount / 100).toFixed(2)}</span>
+                        </div>
+                      ))}
+                      {(() => {
+                        const bundle = (selectedOffer.milestonesSnapshot?.[0] as any)?.deliverable;
+                        const labels = bundle?.slots
+                          ? bundle.slots.map((s: any) => (s.label && s.label.trim() ? s.label : null)).filter(Boolean)
+                          : [];
+                        const unique = [...new Set(labels)];
+                        if (unique.length === 0) return null;
+                        return (
+                          <div className="pt-1">
+                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Deliverables
+                            </div>
+                            <div className="text-xs text-muted-foreground">{unique.join(", ")}</div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    <div className="space-y-1">
+                      {(selectedOffer.longTermAmountCents != null ||
+                        (selectedOffer.longTermCadence && selectedOffer.longTermCadence !== "NONE") ||
+                        selectedOffer.longTermNotes) ? (
+                        <>
+                          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Long-term
+                          </div>
+                          <div className="text-xs">
+                            {selectedOffer.longTermAmountCents != null
+                              ? `$${(selectedOffer.longTermAmountCents / 100).toFixed(2)}`
+                              : "—"}
+                            {selectedOffer.longTermCadence && selectedOffer.longTermCadence !== "NONE"
+                              ? ` · ${String(selectedOffer.longTermCadence).toLowerCase().replace("_", " ")}`
+                              : ""}
+                          </div>
+                          {selectedOffer.longTermNotes ? (
+                            <p className="text-xs text-muted-foreground">{selectedOffer.longTermNotes}</p>
+                          ) : null}
+                        </>
+                      ) : (
+                        <div className="text-xs text-muted-foreground">No long-term charges.</div>
+                      )}
+                      <div className="flex flex-row flex-wrap gap-2 pt-2">
+                        <Button
+                          size="sm"
+                          onClick={() => emitAck("accept_offer", { projectId, offerId: selectedOffer.id, clientId: userId })}
+                          disabled={Boolean(probationary && selectedOffer.totalCents > 150000)}
+                          title={probationary && selectedOffer.totalCents > 150000 ? "Exceeds probationary cap" : undefined}
+                        >
+                          Accept &amp; Fund
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => emitAck("cancel_negotiation", { projectId, clientId: userId })}>
+                          Cancel negotiation
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : !showIntakeForm && canChat ? (
             <div className="flex flex-col gap-2 border-t border-border/60 -mx-3 px-3 py-3">
               {role === "BUILDER" && projectStatus === "ACTIVE" ? (
                 <div className="flex flex-wrap items-center gap-2">

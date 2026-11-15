@@ -56,9 +56,9 @@ interface OffersPanelProps {
   projectStatus: string;
   selectedOfferId?: string | null;
   offers: OfferRecord[];
-  probationary?: boolean;
   builderAtCapacity?: boolean;
   open?: boolean;
+  compact?: boolean;
   onToggle?: () => void;
   unreadCount?: number;
   onJumpToLatest?: () => void;
@@ -97,7 +97,7 @@ interface OffersPanelProps {
   ) => void;
   onMarkOfferFinal: (offerId: string) => void;
   onUnfinalizeOffer: (offerId: string) => void;
-  onAcceptOffer: (offerId: string) => void;
+
   defaultTotalCents?: number;
   defaultPlatformTargets?: PlatformTarget[];
 }
@@ -346,9 +346,9 @@ export function OffersPanel({
   projectStatus,
   selectedOfferId,
   offers,
-  probationary,
   builderAtCapacity = false,
   open = false,
+  compact = false,
   onToggle,
   unreadCount = 0,
   onJumpToLatest,
@@ -360,14 +360,12 @@ export function OffersPanel({
   onUpdateOfferTerms,
   onMarkOfferFinal,
   onUnfinalizeOffer,
-  onAcceptOffer,
   defaultTotalCents = 100000,
   defaultPlatformTargets = ["WEB"],
 }: OffersPanelProps) {
   const myOffer = offers.find((o) => o.builderId === userId);
   const selectedOffer = offers.find((o) => o.id === selectedOfferId) ?? null;
   const [editingTerms, setEditingTerms] = useState(false);
-  const [detailsExpanded, setDetailsExpanded] = useState(false);
 
   if (projectStatus !== "OPEN_FOR_BIDS") return null;
 
@@ -386,13 +384,11 @@ export function OffersPanel({
   const renderTargets = (offer: OfferRecord) => {
     const b = bundleFromOffer(offer);
     if (!b) return null;
-    return (
-      <div className="flex flex-wrap gap-1 text-xs">
-        {b.targets.map((t) => (
-          <Badge key={t} variant="secondary">{PLATFORM_TARGET_LABELS[t]}</Badge>
-        ))}
-      </div>
+    const labels = b.slots.map((s) =>
+      s.label && s.label.trim() ? s.label : PLATFORM_TARGET_LABELS[s.target],
     );
+    if (labels.length === 0) return null;
+    return <div className="text-xs text-muted-foreground">Deliverables: {labels.join(", ")}</div>;
   };
 
   const initialOverridesFrom = (offer: OfferRecord | null | undefined): SlotOverride[] | undefined => {
@@ -402,7 +398,7 @@ export function OffersPanel({
   };
 
   return (
-    <div className="relative -mx-3 border-t border-border/60 px-3 py-3">
+    <div className={`relative -mx-3 border-t border-border/60 px-3 ${compact ? "py-1.5" : "py-3"}`}>
       <button
         type="button"
         className="flex w-full items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-left hover:bg-muted/50"
@@ -412,7 +408,9 @@ export function OffersPanel({
         <div className="flex min-w-0 items-center gap-2">
           {open ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
           <div className="min-w-0">
-            <div className="text-sm font-semibold">Offers &amp; Terms</div>
+            <div className="text-sm font-semibold">
+              {selectedOfferId ? "Other offers" : "Offers"}
+            </div>
             <div className="truncate text-xs text-muted-foreground">{summary}</div>
           </div>
         </div>
@@ -484,11 +482,42 @@ export function OffersPanel({
                     <span>Your offer: {fmt(myOffer.totalCents)}</span>
                   </div>
                   {renderTargets(myOffer)}
-                  {myOffer.status === "SELECTED" ? (
-                    <p className="text-muted-foreground">Selected for negotiation. Discuss in chat and mark final when ready.</p>
-                  ) : myOffer.status === "FINAL" ? (
-                    <p className="text-muted-foreground">Marked final — waiting for client decision.</p>
-                  ) : null}
+                  {editingTerms && role === "BUILDER" && userId === myOffer.builderId ? (
+                    <TermSheet
+                      title="Update terms"
+                      initialTotalCents={myOffer.totalCents}
+                      initialLongTermAmountCents={myOffer.longTermAmountCents}
+                      initialLongTermCadence={myOffer.longTermCadence}
+                      initialLongTermNotes={myOffer.longTermNotes}
+                      initialDueDates={myOffer.milestonesSnapshot?.map((m) => m.dueDate ?? null)}
+                      initialTargets={bundleFromOffer(myOffer)?.targets ?? defaultPlatformTargets}
+                      initialSlotOverrides={initialOverridesFrom(myOffer)}
+                      submitLabel="Save terms"
+                      onSubmit={(t) => {
+                        onUpdateOfferTerms(myOffer.id, t);
+                        setEditingTerms(false);
+                      }}
+                    />
+                  ) : (
+                    <>
+                      {myOffer.status === "SELECTED" ? (
+                        <>
+                          <p className="text-muted-foreground">Selected for negotiation. Discuss in chat and mark final when ready.</p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline" onClick={() => setEditingTerms(true)}>Edit terms</Button>
+                            <Button size="sm" onClick={() => onMarkOfferFinal(myOffer.id)}>Mark Final offer</Button>
+                          </div>
+                        </>
+                      ) : myOffer.status === "FINAL" ? (
+                        <>
+                          <p className="text-muted-foreground">Marked final — waiting for client decision.</p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline" onClick={() => onUnfinalizeOffer(myOffer.id)}>Unfinalize &amp; edit</Button>
+                          </div>
+                        </>
+                      ) : null}
+                    </>
+                  )}
                 </div>
               )
             ) : null}
@@ -503,31 +532,57 @@ export function OffersPanel({
                     const canSelect = !selectedOfferId && offer.status === "SUBMITTED";
                     return (
                       <Card key={offer.id} className={isSelected ? "border-primary" : ""}>
-                        <CardContent className="space-y-2 p-3 text-sm">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
+                        <CardContent className={compact ? "space-y-1 p-1.5 text-xs" : "space-y-1.5 p-2 text-sm"}>
+                          <div className="flex flex-wrap items-center justify-between gap-1">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{offer.builder?.name ?? "Builder"}</span>
                               <Badge variant="outline">{offer.status}</Badge>
                             </div>
-                            <span className="font-semibold">{fmt(offer.totalCents)}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{fmt(offer.totalCents)}</span>
+                              {canSelect ? <Button size="sm" onClick={() => onSelectOffer(offer.id)}>Select</Button> : null}
+                              {isSelected ? (
+                                <>
+                                  {(role as string) === "BUILDER" && userId === offer.builderId ? (
+                                    offer.status === "FINAL" ? (
+                                      <Button size="sm" variant="outline" onClick={() => onUnfinalizeOffer(offer.id)}>Unfinalize &amp; edit</Button>
+                                    ) : offer.status === "SELECTED" ? (
+                                      <>
+                                        <Button size="sm" variant="outline" onClick={() => setEditingTerms(true)}>Edit terms</Button>
+                                        <Button size="sm" onClick={() => onMarkOfferFinal(offer.id)}>Mark Final offer</Button>
+                                      </>
+                                    ) : null
+                                  ) : null}
+                                  {role === "CLIENT" ? (
+                                    <Button size="sm" variant="destructive" onClick={onCancelNegotiation}>Cancel negotiation</Button>
+                                  ) : null}
+                                </>
+                              ) : null}
+                            </div>
                           </div>
                           {renderTargets(offer)}
-                          <ul className="space-y-0.5 text-xs text-muted-foreground">
-                            {(offer.milestonesSnapshot ?? buildMilestones(offer.totalCents)).map((m: any) => (
-                              <li key={m.title} className="flex justify-between">
-                                <span>{m.title}</span>
-                                <span>{fmt(m.amount)}</span>
-                              </li>
-                            ))}
-                          </ul>
-                          <div className="text-xs text-muted-foreground">
-                            Long-term: {offer.longTermAmountCents != null ? fmt(offer.longTermAmountCents) : "—"} ({cadenceLabel(offer.longTermCadence)})
-                            {offer.longTermNotes ? ` · ${offer.longTermNotes}` : ""}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {canSelect ? <Button size="sm" onClick={() => onSelectOffer(offer.id)}>Select for negotiation</Button> : null}
-                            {isSelected ? <Badge>Selected</Badge> : null}
-                          </div>
+                          {editingTerms && isSelected && (role as string) === "BUILDER" && userId === offer.builderId ? (
+                            <TermSheet
+                              title="Update terms"
+                              initialTotalCents={offer.totalCents}
+                              initialLongTermAmountCents={offer.longTermAmountCents}
+                              initialLongTermCadence={offer.longTermCadence}
+                              initialLongTermNotes={offer.longTermNotes}
+                              initialDueDates={offer.milestonesSnapshot?.map((m) => m.dueDate ?? null)}
+                              initialTargets={bundleFromOffer(offer)?.targets ?? defaultPlatformTargets}
+                              initialSlotOverrides={initialOverridesFrom(offer)}
+                              submitLabel="Save terms"
+                              onSubmit={(t) => {
+                                onUpdateOfferTerms(offer.id, t);
+                                setEditingTerms(false);
+                              }}
+                            />
+                          ) : (
+                            <div className="text-xs text-muted-foreground">
+                              Long-term: {offer.longTermAmountCents != null ? fmt(offer.longTermAmountCents) : "—"} ({cadenceLabel(offer.longTermCadence)})
+                              {offer.longTermNotes ? ` · ${offer.longTermNotes}` : ""}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     );
@@ -536,93 +591,7 @@ export function OffersPanel({
               </div>
             ) : null}
 
-            {projectStatus === "OPEN_FOR_BIDS" && selectedOffer ? (
-              <Card className="border-primary/30">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Negotiation — {selectedOffer.builder?.name ?? "Builder"} ({selectedOffer.status})</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  {editingTerms ? (
-                    role === "BUILDER" && userId === selectedOffer.builderId ? (
-                      <TermSheet
-                        title="Update terms"
-                        initialTotalCents={selectedOffer.totalCents}
-                        initialLongTermAmountCents={selectedOffer.longTermAmountCents}
-                        initialLongTermCadence={selectedOffer.longTermCadence}
-                        initialLongTermNotes={selectedOffer.longTermNotes}
-                        initialDueDates={selectedOffer.milestonesSnapshot?.map((m) => m.dueDate ?? null)}
-                        initialTargets={bundleFromOffer(selectedOffer)?.targets ?? defaultPlatformTargets}
-                        initialSlotOverrides={initialOverridesFrom(selectedOffer)}
-                        submitLabel="Save terms"
-                        onSubmit={(t) => {
-                          onUpdateOfferTerms(selectedOffer.id, t);
-                          setEditingTerms(false);
-                          setDetailsExpanded(false);
-                        }}
-                      />
-                    ) : null
-                  ) : (
-                    (() => {
-                      const isSelectedBuilder = role === "BUILDER" && userId === selectedOffer.builderId;
-                      const builderFinalCompact = isSelectedBuilder && selectedOffer.status === "FINAL" && !detailsExpanded;
-                      const milestones = (selectedOffer.milestonesSnapshot ?? buildMilestones(selectedOffer.totalCents)) as any[];
-                      return (
-                        <>
-                          <div className="space-y-1">
-                            <div className="flex justify-between font-medium"><span>Total</span><span>{fmt(selectedOffer.totalCents)}</span></div>
-                            {renderTargets(selectedOffer)}
-                            {builderFinalCompact ? (
-                              <div className="text-xs text-muted-foreground">Milestone and long-term details hidden. Use “See more” to review terms.</div>
-                            ) : (
-                              <>
-                                {milestones.map((m: any) => (
-                                  <div key={m.title} className="flex justify-between text-xs text-muted-foreground">
-                                    <span>{m.title}{m.dueDate ? ` · due ${toDateInput(m.dueDate)}` : ""}</span>
-                                    <span>{fmt(m.amount)}</span>
-                                  </div>
-                                ))}
-                                <div className="text-xs text-muted-foreground">
-                                  Long-term (informational): {selectedOffer.longTermAmountCents != null ? fmt(selectedOffer.longTermAmountCents) : "—"} ({cadenceLabel(selectedOffer.longTermCadence)})
-                                  {selectedOffer.longTermNotes ? ` · ${selectedOffer.longTermNotes}` : ""}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {isSelectedBuilder ? (
-                              selectedOffer.status === "FINAL" ? (
-                                <>
-                                  <Button size="sm" variant="outline" onClick={() => setDetailsExpanded((v) => !v)}>{detailsExpanded ? "See less" : "See more"}</Button>
-                                  <Button size="sm" variant="outline" onClick={() => onUnfinalizeOffer(selectedOffer.id)}>Unfinalize &amp; edit</Button>
-                                </>
-                              ) : selectedOffer.status === "SELECTED" ? (
-                                <>
-                                  <Button size="sm" variant="outline" onClick={() => setEditingTerms(true)}>Edit terms</Button>
-                                  <Button size="sm" onClick={() => onMarkOfferFinal(selectedOffer.id)}>Mark Final offer</Button>
-                                </>
-                              ) : null
-                            ) : null}
-                            {role === "CLIENT" && selectedOffer.status === "FINAL" ? (
-                              <Button
-                                size="sm"
-                                onClick={() => onAcceptOffer(selectedOffer.id)}
-                                disabled={Boolean(probationary && selectedOffer.totalCents > 150000)}
-                                title={probationary && selectedOffer.totalCents > 150000 ? "Exceeds probationary cap" : undefined}
-                              >
-                                Accept &amp; Fund
-                              </Button>
-                            ) : null}
-                            {role === "CLIENT" ? (
-                              <Button size="sm" variant="destructive" onClick={onCancelNegotiation}>Cancel negotiation</Button>
-                            ) : null}
-                          </div>
-                        </>
-                      );
-                    })()
-                  )}
-                </CardContent>
-              </Card>
-            ) : null}
+
           </div>
         </div>
       ) : null}
