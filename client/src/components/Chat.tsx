@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { io, type Socket } from "socket.io-client";
+import { toast } from "sonner";
 
 import { ArrowDown, FileText, MoreVertical, ScrollText, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { inferPlatformTargetsFromScope } from "@/lib/deliverables";
 import { buildMilestones, sumMilestoneAmounts } from "@/lib/milestones";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +26,7 @@ import { ProjectControls } from "@/components/ProjectControls";
 import { ScopeIntakeForm } from "@/components/ScopeIntakeForm";
 import { ScopeWidget } from "@/components/ScopeWidget";
 import { SOCKET_URL } from "@/lib/api";
+import { emitWithAck } from "@/lib/socketAck";
 
 interface ChatMessage {
   id: string;
@@ -88,6 +97,7 @@ export function Chat({
   const [submitOpen, setSubmitOpen] = useState(false);
   const [acceptingOfferId, setAcceptingOfferId] = useState<string | null>(null);
   const [fundConfirmOpen, setFundConfirmOpen] = useState(false);
+  const [fundError, setFundError] = useState<string | null>(null);
   const [builderPayoutOpen, setBuilderPayoutOpen] = useState(false);
   const [builderPayoutData, setBuilderPayoutData] = useState<any>(null);
   const [clientCongratsOpen, setClientCongratsOpen] = useState(false);
@@ -910,7 +920,10 @@ export function Chat({
                       <div className="flex flex-row flex-wrap gap-2 pt-2">
                         <Button
                           size="sm"
-                          onClick={() => setFundConfirmOpen(true)}
+                          onClick={() => {
+                            setFundError(null);
+                            setFundConfirmOpen(true);
+                          }}
                           disabled={Boolean(probationary && selectedOffer.totalCents > 150000)}
                           title={probationary && selectedOffer.totalCents > 150000 ? "Exceeds probationary cap" : undefined}
                         >
@@ -962,27 +975,16 @@ export function Chat({
             </div>
           ) : null}
         </CardContent>
-        {headerScopeOpen && showHeaderScopeButton ? (
-          <div className="absolute inset-0 z-40 flex flex-col bg-background/80 backdrop-blur-[1px]">
-            <div className="mt-12 flex min-h-0 flex-1 flex-col border-t bg-background shadow-lg">
-              <div className="flex items-center justify-between border-b px-4 py-3">
-                <div className="min-w-0">
-                  <h3 className="text-sm font-semibold">Project description</h3>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {project?.title ?? `Project ${projectId}`}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setHeaderScopeOpen(false)}
-                  aria-label="Close description"
-                  title="Close"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <Dialog open={headerScopeOpen && showHeaderScopeButton} onOpenChange={setHeaderScopeOpen}>
+          <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+            <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 text-left">
+              <DialogTitle>Project description</DialogTitle>
+              <DialogDescription className="truncate">
+                {project?.title ?? `Project ${projectId}`}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {latestScopeMessage ? (
                 <ScopeWidget
                   socket={socketRef.current}
                   projectId={projectId}
@@ -995,30 +997,23 @@ export function Chat({
                   openBidsLimit={clientOpenBidsLimit}
                   openBidProjects={clientOpenBidProjects}
                 />
-              </div>
+              ) : null}
             </div>
-          </div>
-        ) : null}
-        {headerTermsOpen && headerTermsData ? (
-          <div className="absolute inset-0 z-40 flex flex-col bg-background/80 backdrop-blur-[1px]">
-            <div className="mt-12 flex min-h-0 flex-1 flex-col border-t bg-background shadow-lg">
-              <div className="flex items-center justify-between border-b px-4 py-3">
-                <div className="min-w-0">
-                  <h3 className="text-sm font-semibold">Offer &amp; Terms</h3>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {headerTermsData.builderName} · Agreed terms
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setHeaderTermsOpen(false)}
-                  aria-label="Close terms"
-                  title="Close"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={headerTermsOpen && !!headerTermsData}
+          onOpenChange={setHeaderTermsOpen}
+        >
+          <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+            <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 text-left">
+              <DialogTitle>Offer &amp; Terms</DialogTitle>
+              <DialogDescription className="truncate">
+                {headerTermsData?.builderName ?? "Builder"} · Agreed terms
+              </DialogDescription>
+            </DialogHeader>
+            {headerTermsData ? (
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 text-sm">
                 <div className="flex items-center justify-between font-medium">
                   <span>Total</span>
@@ -1065,9 +1060,9 @@ export function Chat({
                   </div>
                 ) : null}
               </div>
-            </div>
-          </div>
-        ) : null}
+            ) : null}
+          </DialogContent>
+        </Dialog>
       </Card>
       {submitOpen && nextDemoMilestone?.id ? (
         <DemoSubmitDialog
@@ -1097,21 +1092,32 @@ export function Chat({
         projectTitle={project?.title}
         isRetry={Boolean(project?.acceptedOfferId && project?.status !== "ACTIVE")}
         isDrafting={acceptingOfferId === (selectedOffer?.id ?? null)}
-        onConfirm={() => {
-          if (!selectedOffer) return;
+        error={fundError}
+        onConfirm={async () => {
+          if (!selectedOffer || acceptingOfferId) return;
+          setFundError(null);
           setAcceptingOfferId(selectedOffer.id);
-          emitAck("accept_offer", {
-            projectId,
-            offerId: selectedOffer.id,
-            clientId: userId,
-          });
-          window.setTimeout(() => {
-            setAcceptingOfferId(null);
+          try {
+            const result = await emitWithAck(socketRef.current, "accept_offer", {
+              projectId,
+              offerId: selectedOffer.id,
+              clientId: userId,
+            });
+            if (!result.ok) {
+              const msg = result.error || "Failed to fund project. Please try again.";
+              setFundError(msg);
+              toast.error(msg);
+              return;
+            }
+            toast.success("Funding confirmed");
             setFundConfirmOpen(false);
-          }, 1500);
+          } finally {
+            setAcceptingOfferId(null);
+          }
         }}
         onClose={() => {
           if (acceptingOfferId) return;
+          setFundError(null);
           setFundConfirmOpen(false);
         }}
       />

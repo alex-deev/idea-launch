@@ -10,6 +10,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Moon, Sun } from "lucide-react";
+import { Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
 import { BuilderOnboarding } from "@/components/BuilderOnboarding";
 import { ProjectWorkspace } from "@/components/ProjectWorkspace";
@@ -313,6 +314,7 @@ function App() {
           </div>
         </main>
       </div>
+      <Toaster richColors position="top-right" />
     </BrowserRouter>
   );
 }

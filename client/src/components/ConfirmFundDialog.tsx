@@ -17,7 +17,8 @@ interface ConfirmFundDialogProps {
   projectTitle?: string;
   isRetry?: boolean;
   isDrafting: boolean;
-  onConfirm: () => void;
+  error?: string | null;
+  onConfirm: () => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -32,6 +33,7 @@ export function ConfirmFundDialog({
   projectTitle,
   isRetry = false,
   isDrafting,
+  error,
   onConfirm,
   onClose,
 }: ConfirmFundDialogProps) {
@@ -136,6 +138,12 @@ export function ConfirmFundDialog({
             </p>
           </div>
 
+          {error ? (
+            <p className="text-xs text-red-600" role="alert">
+              {error}
+            </p>
+          ) : null}
+
           {!canConfirm && !isDrafting ? (
             <p className="text-xs text-red-600">
               {cardLoading
@@ -147,7 +155,7 @@ export function ConfirmFundDialog({
           <div className="flex gap-2 pt-1">
             <Button
               className="flex-1"
-              onClick={onConfirm}
+              onClick={() => void onConfirm()}
               disabled={!canConfirm}
             >
               {isDrafting ? "Drafting funds…" : isRetry ? "Retry funding" : "Confirm & draft funds"}
