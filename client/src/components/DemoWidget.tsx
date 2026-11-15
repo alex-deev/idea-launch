@@ -195,14 +195,7 @@ export function DemoWidget({
 
         {current && currentTarget ? (
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{PLATFORM_TARGET_LABELS[currentTarget]}</Badge>
-              {pinned?.kind ? <Badge variant="outline">{pinned.kind.replace("_", " ")}</Badge> : null}
-              {pinned?.platform ? <Badge variant="outline">{pinned.platform}</Badge> : null}
-              {pinned?.os ? <Badge variant="outline">{pinned.os}</Badge> : null}
-            </div>
-
-            {d.title ? <p className="font-medium">{String(d.title)}</p> : null}
+            {d.title ? <Badge variant="secondary">{String(d.title)}</Badge> : null}
 
             {d.accessUrl ? (
               <a
