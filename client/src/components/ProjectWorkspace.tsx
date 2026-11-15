@@ -515,9 +515,9 @@ export function ProjectWorkspace({
                             : "hover:bg-muted/50"
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium">{project.title}</span>
-                          <Badge variant="outline">{project.status}</Badge>
+                        <div className="flex min-w-0 items-center justify-between gap-2">
+                          <span className="min-w-0 truncate font-medium">{project.title}</span>
+                          <Badge variant="outline" className="shrink-0">{project.status}</Badge>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
                           ${(project.totalEscrow / 100).toFixed(2)} · {releasedCount}/
@@ -553,9 +553,9 @@ export function ProjectWorkspace({
                                 : "hover:bg-muted/50"
                             }`}
                           >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium">{project.title}</span>
-                              <Badge variant="outline">{project.status}</Badge>
+                            <div className="flex min-w-0 items-center justify-between gap-2">
+                              <span className="min-w-0 truncate font-medium">{project.title}</span>
+                              <Badge variant="outline" className="shrink-0">{project.status}</Badge>
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">
                               ${(project.totalEscrow / 100).toFixed(2)} · {project.milestones.length} milestones

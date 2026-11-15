@@ -1,13 +1,18 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/source-serif-pro/400.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-heading: var(--font-serif);
+    --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-serif: 'Source Serif Pro', ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,39 +53,95 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Notion design tokens (light) */
+@theme {
+    /* Colors */
+    --color-notion-blue: #0075de;
+    --color-paper-warmth: #f6f5f4;
+    --color-pure-white: #ffffff;
+    --color-ink-black: #000000;
+    --color-charcoal: #111111;
+    --color-stone: #757575;
+    --color-graphite: #615d59;
+    --color-slate: #696969;
+    --color-sky-tint: #e6f3fe;
+    --color-marigold: #ffb110;
+    --color-coral: #f64932;
+    --color-saffron: #e89d01;
+    --color-vermillion: #e32d14;
+    --color-mocha: #b18164;
+    --color-signal-blue: #097fe8;
+    --color-sky-wash: #62aef0;
+    --color-midnight-ink: #02093a;
+
+    /* Typography */
+    --font-notioninter: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-lyon-text: 'Source Serif Pro', ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+
+    /* Typography — Scale */
+    --text-caption: 12px;
+    --leading-caption: 1.33;
+    --tracking-caption: 0.12px;
+    --text-body-sm: 14px;
+    --leading-body-sm: 1.43;
+    --text-body: 16px;
+    --leading-body: 1.5;
+    --text-subheading: 20px;
+    --leading-subheading: 1;
+    --text-heading-sm: 22px;
+    --leading-heading-sm: 1.27;
+    --tracking-heading-sm: -0.242px;
+    --text-heading: 40px;
+    --leading-heading: 1.5;
+    --text-heading-lg: 48px;
+    --leading-heading-lg: 1.5;
+    --text-display-sm: 54px;
+    --leading-display-sm: 1.04;
+    --tracking-display-sm: -1.89px;
+    --text-display: 72px;
+    --leading-display: 1.21;
+    --tracking-display: -2.016px;
+    --text-display-lg: 96px;
+    --leading-display-lg: 1.04;
+    --tracking-display-lg: -4.608px;
+
+    /* Spacing — uses Tailwind default scale (4px base) to avoid breaking utilities */
+    /* Border Radius — uses Tailwind default scale */
+}
+
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
+    --background: #f6f5f4;
+    --foreground: #000000;
+    --card: #ffffff;
+    --card-foreground: #000000;
+    --popover: #ffffff;
+    --popover-foreground: #000000;
+    --primary: #0075de;
+    --primary-foreground: #ffffff;
+    --secondary: #f0efee;
+    --secondary-foreground: #000000;
+    --muted: #f0efee;
+    --muted-foreground: #615d59;
+    --accent: #e6f3fe;
+    --accent-foreground: #0075de;
     --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+    --border: rgba(0, 0, 0, 0.15);
+    --input: rgba(0, 0, 0, 0.15);
+    --ring: #0075de;
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --radius: 0.5rem;
+    --sidebar: #ffffff;
+    --sidebar-foreground: #000000;
+    --sidebar-primary: #0075de;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #f0efee;
+    --sidebar-accent-foreground: #000000;
+    --sidebar-border: rgba(0, 0, 0, 0.08);
+    --sidebar-ring: #0075de;
 }
 
 .dark {
@@ -144,6 +205,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "lnum", "locl" 0;
   }
   html {
     @apply font-sans;
