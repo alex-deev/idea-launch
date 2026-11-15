@@ -1,0 +1,16 @@
+{
+  "mcp": {
+    "servers": {
+      "chrome-devtools": {
+        "type": "local",
+        "command": [
+          "npx",
+          "-y",
+          "chrome-devtools-mcp@latest",
+          "--browserUrl",
+          "http://172.25.176.1:9222"
+        ]
+      }
+    }
+  }
+}
