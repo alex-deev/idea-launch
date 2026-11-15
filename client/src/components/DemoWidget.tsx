@@ -195,7 +195,13 @@ export function DemoWidget({
 
         {current && currentTarget ? (
           <div className="space-y-3">
-            {d.title ? <p className="font-medium">{String(d.title)}</p> : null}
+            {d.title
+              ? (() => {
+                  const raw = String(d.title);
+                  const cleaned = raw.replace(/\s*[—–-]\s*(Web|iOS|Android|Cross-platform mobile|Windows|macOS|Linux)\s*$/i, "").trim();
+                  return cleaned ? <p className="font-medium">{cleaned}</p> : null;
+                })()
+              : null}
 
             {d.accessUrl ? (
               <a

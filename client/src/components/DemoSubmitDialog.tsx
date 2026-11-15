@@ -61,7 +61,7 @@ function prefillDraft(spec: BundleSpec, milestoneTitle: string, currentSubmissio
     const d = found?.deliverable ?? found ?? {};
     return {
       target,
-      title: typeof d.title === "string" && d.title ? d.title : `${milestoneTitle} — ${PLATFORM_TARGET_LABELS[target]}`,
+      title: typeof d.title === "string" && d.title ? d.title : milestoneTitle,
       accessUrl: typeof d.accessUrl === "string" ? d.accessUrl : "",
       instructions: typeof d.instructions === "string" ? d.instructions : "",
       version: typeof d.version === "string" ? d.version : "",
