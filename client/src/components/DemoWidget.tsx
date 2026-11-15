@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Socket } from "socket.io-client";
+import { Info } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ export function DemoWidget({
   const [reason, setReason] = useState("");
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [active, setActive] = useState(0);
+  const [showStatusInfo, setShowStatusInfo] = useState(false);
 
   useEffect(() => {
     const id = window.setInterval(() => setNowTick(Date.now()), 60_000);
@@ -85,6 +87,18 @@ export function DemoWidget({
       : isApproved
         ? { label: "Approved", variant: "default" as const }
         : { label: "Awaiting review", variant: "secondary" as const };
+
+  const statusDescription = !isCurrent
+    ? "Superseded by a newer submission."
+    : isChangesRequested
+      ? role === "BUILDER"
+        ? "Please submit an updated bundle for this milestone."
+        : "Awaiting builder update."
+      : isApproved
+        ? "Approved and released."
+        : role === "CLIENT"
+          ? "Awaiting review actions."
+          : "Awaiting client review.";
 
   const slots: Array<{ target: PlatformTarget; deliverable: any }> = Array.isArray(
     payload?.bundle?.slots,
@@ -142,9 +156,25 @@ export function DemoWidget({
               {milestone?.title ?? milestoneId} · {slots.length} target{slots.length === 1 ? "" : "s"}
             </p>
           </div>
-          <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
+          <div className="flex items-center gap-1">
+            <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
+            <button
+              type="button"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Submission status details"
+              aria-expanded={showStatusInfo}
+              onClick={() => setShowStatusInfo((v) => !v)}
+            >
+              <Info className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </CardHeader>
+      {showStatusInfo ? (
+        <div className="border-b px-6 py-2 text-xs text-muted-foreground">
+          {statusDescription}
+        </div>
+      ) : null}
       <CardContent className="space-y-3 text-sm">
         {slots.length > 1 ? (
           <div className="flex flex-wrap gap-1 border-b pb-2">
@@ -279,23 +309,7 @@ export function DemoWidget({
               </Button>
             </div>
           )
-        ) : isCurrent ? (
-          isApproved ? (
-            <p className="text-green-700">Approved and released.</p>
-          ) : isChangesRequested ? (
-            role === "BUILDER" ? (
-              <p className="text-muted-foreground">Please submit an updated bundle for this milestone.</p>
-            ) : (
-              <p className="text-muted-foreground">Awaiting builder update.</p>
-            )
-          ) : (
-            <p className="text-muted-foreground">
-              {role === "CLIENT" ? "Awaiting review actions." : "Awaiting client review."}
-            </p>
-          )
-        ) : (
-          <p className="text-muted-foreground">Superseded by a newer submission.</p>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );
