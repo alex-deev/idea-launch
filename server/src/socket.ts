@@ -656,24 +656,60 @@ export function initializeSocket(httpServer: HttpServer) {
           const isReleased =
             result.milestone.status === "RELEASED" ||
             result.milestone.status === "COMPLETED";
+          const amountText = `$${(result.milestone.amount / 100).toFixed(2)}`;
           const content = isReleased
-            ? `${result.milestone.title} approved and released.`
+            ? `${result.milestone.title} approved. ${amountText} released.`
             : result.payment
-              ? `${result.milestone.title} approved; transfer pending.`
+              ? `${result.milestone.title} approved; transfer pending. ${amountText}.`
               : `${result.milestone.title} approved.`;
+          const releasedMilestonesForMsg = result.project.milestones.filter(
+            (m: any) => m.status === "RELEASED" || m.status === "COMPLETED",
+          );
+          const totalReleasedForMsg = releasedMilestonesForMsg.reduce(
+            (sum: number, m: any) => sum + (m.amount ?? 0),
+            0,
+          );
           const sys = await prisma.message.create({
             data: {
               projectId: result.milestone.projectId,
               senderId: actorId,
               type: "SYSTEM" as any,
               content,
+              payload: {
+                kind: "MILESTONE_RELEASED",
+                milestoneId: result.milestone.id,
+                milestoneTitle: result.milestone.title,
+                projectTitle: result.project.title,
+                amountCents: result.milestone.amount,
+                totalReleasedCents: totalReleasedForMsg,
+                status: result.payment?.status ?? (isReleased ? "SUCCEEDED" : null),
+                providerRef: result.payment?.providerRef ?? null,
+                isFinal: result.milestone.title === "Deployment",
+              } as any,
             },
           });
           io.to(result.milestone.projectId).emit("new_message", sys);
         }
 
+        const releasedMilestones = result.project.milestones.filter(
+          (m: any) => m.status === "RELEASED" || m.status === "COMPLETED",
+        );
+        const totalReleasedCents = releasedMilestones.reduce(
+          (sum: number, m: any) => sum + (m.amount ?? 0),
+          0,
+        );
+        const isFinalMilestone = result.milestone.title === "Deployment";
+
         io.to(result.milestone.projectId).emit("milestone_updated", {
           milestone: result.milestone,
+        });
+        io.to(result.milestone.projectId).emit("milestone_released", {
+          projectId: result.milestone.projectId,
+          milestone: result.milestone,
+          payment: result.payment,
+          project: result.project,
+          isFinal: isFinalMilestone,
+          totalReleasedCents,
         });
         await emitProjectState(io, result.milestone.projectId);
         ack?.({ ok: true, milestone: result.milestone, payment: result.payment });

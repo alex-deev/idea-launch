@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { DemoWidget } from "@/components/DemoWidget";
 import { DemoSubmitDialog } from "@/components/DemoSubmitDialog";
 import { ConfirmFundDialog } from "@/components/ConfirmFundDialog";
+import { BuilderPayoutDialog, ClientCongratsDialog } from "@/components/DeploymentCompleteDialog";
 import { OffersPanel, type OfferRecord } from "@/components/OfferWidget";
 import { ProjectControls } from "@/components/ProjectControls";
 import { ScopeIntakeForm } from "@/components/ScopeIntakeForm";
@@ -87,6 +88,10 @@ export function Chat({
   const [submitOpen, setSubmitOpen] = useState(false);
   const [acceptingOfferId, setAcceptingOfferId] = useState<string | null>(null);
   const [fundConfirmOpen, setFundConfirmOpen] = useState(false);
+  const [builderPayoutOpen, setBuilderPayoutOpen] = useState(false);
+  const [builderPayoutData, setBuilderPayoutData] = useState<any>(null);
+  const [clientCongratsOpen, setClientCongratsOpen] = useState(false);
+  const seenReleasesRef = useRef<Set<string>>(new Set());
 
   const showIntakeForm =
     role === "CLIENT" &&
@@ -163,6 +168,41 @@ export function Chat({
         next[idx] = { ...next[idx], ...milestone };
         return { ...prev, milestones: next };
       });
+    });
+
+    socket.on("milestone_released", (data: any) => {
+      const releaseKey =
+        data?.payment?.id ?? data?.milestone?.id ?? `release-${Date.now()}`;
+      if (seenReleasesRef.current.has(releaseKey)) return;
+      seenReleasesRef.current.add(releaseKey);
+
+      if (data?.project) {
+        setProject(data.project);
+        if (Array.isArray(data.project.offers)) setOffers(data.project.offers);
+        setSelectedOfferId(data.project.selectedOfferId ?? null);
+        if (data.project.status) {
+          setProjectStatus(data.project.status);
+          onProjectStatusChange?.(projectId, data.project.status);
+        }
+      }
+
+      const isFinal =
+        data?.isFinal === true || data?.milestone?.title === "Deployment";
+      if (!isFinal) return;
+
+      if (role === "BUILDER") {
+        setBuilderPayoutData({
+          projectTitle: data?.project?.title ?? project?.title,
+          milestoneTitle: data?.milestone?.title,
+          amountReleasedNow: data?.milestone?.amount ?? 0,
+          totalReleased: data?.totalReleasedCents ?? 0,
+          paymentStatus: data?.payment?.status ?? null,
+          paymentRef: data?.payment?.providerRef ?? null,
+        });
+        setBuilderPayoutOpen(true);
+      } else if (role === "CLIENT") {
+        setClientCongratsOpen(true);
+      }
     });
 
     return () => {
@@ -698,10 +738,32 @@ export function Chat({
                     }
 
                   if (message.type === "SYSTEM") {
+                    const p = message.payload as any;
+                    const canViewRelease =
+                      role === "BUILDER" && p?.kind === "MILESTONE_RELEASED";
                     return (
                       <div key={message.id} className="flex justify-center">
-                        <span className="max-w-[85%] rounded-full bg-muted px-3 py-1 text-center text-xs font-medium text-muted-foreground shadow-sm">
-                          {message.content}
+                        <span className="inline-flex max-w-[85%] flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full bg-muted px-3 py-1 text-center text-xs font-medium text-muted-foreground shadow-sm">
+                          <span>{message.content}</span>
+                          {canViewRelease ? (
+                            <button
+                              type="button"
+                              className="font-semibold text-primary underline underline-offset-2 hover:opacity-80"
+                              onClick={() => {
+                                setBuilderPayoutData({
+                                  projectTitle: p.projectTitle ?? project?.title,
+                                  milestoneTitle: p.milestoneTitle,
+                                  amountReleasedNow: p.amountCents ?? 0,
+                                  totalReleased: p.totalReleasedCents ?? 0,
+                                  paymentStatus: p.status ?? null,
+                                  paymentRef: p.providerRef ?? null,
+                                });
+                                setBuilderPayoutOpen(true);
+                              }}
+                            >
+                              View details
+                            </button>
+                          ) : null}
                         </span>
                       </div>
                     );
@@ -1052,6 +1114,21 @@ export function Chat({
           if (acceptingOfferId) return;
           setFundConfirmOpen(false);
         }}
+      />
+      <BuilderPayoutDialog
+        open={builderPayoutOpen}
+        onClose={() => setBuilderPayoutOpen(false)}
+        projectTitle={builderPayoutData?.projectTitle ?? project?.title}
+        milestoneTitle={builderPayoutData?.milestoneTitle}
+        amountReleasedNow={builderPayoutData?.amountReleasedNow}
+        totalReleased={builderPayoutData?.totalReleased}
+        paymentStatus={builderPayoutData?.paymentStatus}
+        paymentRef={builderPayoutData?.paymentRef}
+      />
+      <ClientCongratsDialog
+        open={clientCongratsOpen}
+        onClose={() => setClientCongratsOpen(false)}
+        projectTitle={project?.title}
       />
     </div>
   );
