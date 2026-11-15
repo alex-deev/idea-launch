@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DemoWidget } from "@/components/DemoWidget";
 import { DemoSubmitDialog } from "@/components/DemoSubmitDialog";
+import { ConfirmFundDialog } from "@/components/ConfirmFundDialog";
 import { OffersPanel, type OfferRecord } from "@/components/OfferWidget";
 import { ProjectControls } from "@/components/ProjectControls";
 import { ScopeIntakeForm } from "@/components/ScopeIntakeForm";
@@ -85,6 +86,7 @@ export function Chat({
   const [actionError, setActionError] = useState<string | null>(null);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [acceptingOfferId, setAcceptingOfferId] = useState<string | null>(null);
+  const [fundConfirmOpen, setFundConfirmOpen] = useState(false);
 
   const showIntakeForm =
     role === "CLIENT" &&
@@ -846,21 +848,11 @@ export function Chat({
                       <div className="flex flex-row flex-wrap gap-2 pt-2">
                         <Button
                           size="sm"
-                          onClick={() => {
-                            setAcceptingOfferId(selectedOffer.id);
-                            emitAck("accept_offer", { projectId, offerId: selectedOffer.id, clientId: userId });
-                            // Reset after a short delay; project state updates via socket.
-                            window.setTimeout(() => setAcceptingOfferId(null), 1500);
-                          }}
-                          disabled={
-                            Boolean(probationary && selectedOffer.totalCents > 150000) ||
-                            acceptingOfferId === selectedOffer.id
-                          }
+                          onClick={() => setFundConfirmOpen(true)}
+                          disabled={Boolean(probationary && selectedOffer.totalCents > 150000)}
                           title={probationary && selectedOffer.totalCents > 150000 ? "Exceeds probationary cap" : undefined}
                         >
-                          {acceptingOfferId === selectedOffer.id
-                            ? "Drafting funds…"
-                            : "Accept & Fund"}
+                          Accept &amp; Fund
                         </Button>
                         <Button size="sm" variant="destructive" onClick={() => emitAck("cancel_negotiation", { projectId, clientId: userId })}>
                           Cancel negotiation
@@ -1036,6 +1028,31 @@ export function Chat({
           onClose={() => setSubmitOpen(false)}
         />
       ) : null}
+      <ConfirmFundDialog
+        open={fundConfirmOpen}
+        projectId={projectId}
+        offer={selectedOffer ?? null}
+        projectTitle={project?.title}
+        isRetry={Boolean(project?.acceptedOfferId && project?.status !== "ACTIVE")}
+        isDrafting={acceptingOfferId === (selectedOffer?.id ?? null)}
+        onConfirm={() => {
+          if (!selectedOffer) return;
+          setAcceptingOfferId(selectedOffer.id);
+          emitAck("accept_offer", {
+            projectId,
+            offerId: selectedOffer.id,
+            clientId: userId,
+          });
+          window.setTimeout(() => {
+            setAcceptingOfferId(null);
+            setFundConfirmOpen(false);
+          }, 1500);
+        }}
+        onClose={() => {
+          if (acceptingOfferId) return;
+          setFundConfirmOpen(false);
+        }}
+      />
     </div>
   );
 }
