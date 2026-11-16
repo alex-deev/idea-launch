@@ -1,0 +1,23 @@
+{
+  "name": "Idea Launch",
+  "short_name": "Idea Launch",
+  "description": "Scope, fund, and ship software with confidence.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f5f4",
+  "theme_color": "#f6f5f4",
+  "icons": [
+    {
+      "src": "/logo-mark-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

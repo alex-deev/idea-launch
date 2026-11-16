@@ -105,8 +105,13 @@ function Header({
 
   return (
     <header className="shrink-0 flex items-center justify-between border-b p-4">
-      <Link to="/" className="text-lg font-semibold">
-        Idea Launch
+      <Link to="/" className="flex items-center gap-2" aria-label="Idea Launch home">
+        <img
+          src={theme === "dark" ? "/logo-horizontal-dark.svg" : "/logo-horizontal.svg"}
+          alt="Idea Launch"
+          className="hidden h-7 w-auto sm:block"
+        />
+        <img src="/logo-mark.svg" alt="" aria-hidden="true" className="h-8 w-8 sm:hidden" />
       </Link>
       <div className="flex items-center gap-2">
         <Button
@@ -253,10 +258,17 @@ function LandingPage({ user }: { user: FakeUser | null }) {
   return (
     <div className="w-full max-w-5xl space-y-24 py-10 md:space-y-32 md:py-16">
       <section className="mx-auto max-w-3xl space-y-8 text-center">
-        <div className="space-y-5">
+        <div className="flex flex-col items-center space-y-5">
+          <img
+            src="/logo-mark.svg"
+            alt=""
+            aria-hidden="true"
+            className="hero-reveal h-14 w-14 md:h-16 md:w-16"
+            style={{ animationDelay: "0ms" }}
+          />
           <h1
             className="hero-reveal text-4xl font-semibold leading-[1.1] tracking-[-0.03em] text-foreground sm:text-5xl md:text-6xl md:leading-[1.05] md:tracking-[-0.04em]"
-            style={{ animationDelay: "0ms" }}
+            style={{ animationDelay: "80ms" }}
           >
             Scope, fund, and{" "}
             <span className="inline-block rounded-full bg-[#f6d5b8] px-3 py-0.5 text-black transition-transform duration-300 hover:scale-105 md:px-4">
@@ -266,7 +278,7 @@ function LandingPage({ user }: { user: FakeUser | null }) {
           </h1>
           <p
             className="hero-reveal mx-auto max-w-2xl font-serif text-lg leading-relaxed text-muted-foreground md:text-xl"
-            style={{ animationDelay: "120ms" }}
+            style={{ animationDelay: "200ms" }}
           >
             Turn an idea into a clear blueprint, compare builder offers, and pay only as each
             milestone is approved.
@@ -275,7 +287,7 @@ function LandingPage({ user }: { user: FakeUser | null }) {
 
         <div
           className="hero-reveal flex flex-wrap items-center justify-center gap-3 pt-2"
-          style={{ animationDelay: "240ms" }}
+          style={{ animationDelay: "320ms" }}
         >
           {user ? (
             <Button asChild size="lg" className="active:scale-[0.98]">
@@ -294,7 +306,7 @@ function LandingPage({ user }: { user: FakeUser | null }) {
         </div>
         <p
           className="hero-reveal text-xs tracking-wide text-muted-foreground"
-          style={{ animationDelay: "360ms" }}
+          style={{ animationDelay: "440ms" }}
         >
           3 milestones · 30/40/30 escrow · demo-reviewed releases
         </p>
@@ -527,8 +539,8 @@ function LandingPage({ user }: { user: FakeUser | null }) {
       {launchingTo ? (
         <div className="app-launch-overlay fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-4">
-            <div className="app-launch-mark flex h-14 w-14 items-center justify-center rounded-2xl border border-[#0075de]/20 bg-[#e6f3fe] text-[#0075de] dark:border-[#62aef0]/20 dark:bg-[#1e3a5f]/40 dark:text-[#62aef0]">
-              <Rocket className="h-6 w-6" />
+            <div className="app-launch-mark flex h-16 w-16 items-center justify-center rounded-2xl border border-[#0075de]/20 bg-[#e6f3fe]/60 p-2 dark:border-[#62aef0]/20 dark:bg-[#1e3a5f]/30">
+              <img src="/logo-mark.svg" alt="" aria-hidden="true" className="h-full w-full" />
             </div>
             <p className="text-sm font-medium text-muted-foreground">
               {launchingTo === "/workspace" ? "Opening workspace…" : "Opening…"}

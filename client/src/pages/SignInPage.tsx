@@ -37,7 +37,8 @@ export function SignInPage() {
 
   return (
     <Card className="w-full max-w-md">
-      <CardHeader>
+      <CardHeader className="items-center text-center">
+        <img src="/logo-mark.svg" alt="" aria-hidden="true" className="mb-1 h-10 w-10" />
         <CardTitle>Sign in</CardTitle>
       </CardHeader>
       <CardContent>
