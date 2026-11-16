@@ -31,12 +31,31 @@ const authConfig = {
   },
   cookies: {
     sessionToken: {
-      // Use "__Host-" in production only when cookie is scoped to the host with
-      // no Domain attribute; for cross-origin client/server deploys we use the
-      // "__Secure-" prefix and SameSite=None.
       name: isProduction
         ? "__Secure-authjs.session-token"
         : "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: (isProduction ? "none" : "lax") as "none" | "lax",
+        path: "/",
+        secure: isProduction,
+      },
+    },
+    csrfToken: {
+      name: isProduction
+        ? "__Secure-authjs.csrf-token"
+        : "authjs.csrf-token",
+      options: {
+        httpOnly: true,
+        sameSite: (isProduction ? "none" : "lax") as "none" | "lax",
+        path: "/",
+        secure: isProduction,
+      },
+    },
+    callbackUrl: {
+      name: isProduction
+        ? "__Secure-authjs.callback-url"
+        : "authjs.callback-url",
       options: {
         httpOnly: true,
         sameSite: (isProduction ? "none" : "lax") as "none" | "lax",

@@ -54,8 +54,8 @@ async function fetchCsrfToken(): Promise<string> {
   if (!response.ok) {
     throw new Error("Failed to fetch CSRF token");
   }
-  const data = (await response.json()) as { csrfToken?: string };
-  if (!data.csrfToken) {
+  const data = (await response.json().catch(() => null)) as { csrfToken?: string } | null;
+  if (!data?.csrfToken) {
     throw new Error("Missing CSRF token");
   }
   return data.csrfToken;
@@ -68,8 +68,8 @@ async function fetchSessionUser(): Promise<FakeUser | null> {
   if (!response.ok) {
     return null;
   }
-  const data = (await response.json()) as { user?: SessionUser };
-  return data.user ? mapSessionUser(data.user) : null;
+  const data = (await response.json().catch(() => null)) as { user?: SessionUser } | null;
+  return data?.user ? mapSessionUser(data.user) : null;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
