@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import {
   BrowserRouter,
   Link,
@@ -6,18 +6,20 @@ import {
   Route,
   Routes,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import {
+  ArrowRight,
   Banknote,
   Eye,
- 
   FileText,
   Gauge,
   Handshake,
   MessageSquareCheck,
   Moon,
+  Rocket,
   Scale,
   Send,
   ShieldCheck,
@@ -141,6 +143,20 @@ function Header({
 }
 
 function LandingPage({ user }: { user: FakeUser | null }) {
+  const navigate = useNavigate();
+  const [launchingTo, setLaunchingTo] = useState<string | null>(null);
+
+  const handleLaunch = (e: MouseEvent, to: string) => {
+    e.preventDefault();
+    if (launchingTo) return;
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      navigate(to);
+      return;
+    }
+    setLaunchingTo(to);
+    window.setTimeout(() => navigate(to), 380);
+  };
+
   const steps = [
     {
       number: "01",
@@ -263,15 +279,15 @@ function LandingPage({ user }: { user: FakeUser | null }) {
         >
           {user ? (
             <Button asChild size="lg" className="active:scale-[0.98]">
-              <Link to="/workspace">Go to workspace</Link>
+              <Link to="/workspace" onClick={(e) => handleLaunch(e, "/workspace")}>Go to workspace</Link>
             </Button>
           ) : (
             <>
               <Button asChild size="lg" className="active:scale-[0.98]">
-                <Link to="/signup">Get started</Link>
+                <Link to="/signup" onClick={(e) => handleLaunch(e, "/signup")}>Get started</Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="active:scale-[0.98]">
-                <Link to="/signin">Sign in</Link>
+                <Link to="/signin" onClick={(e) => handleLaunch(e, "/signin")}>Sign in</Link>
               </Button>
             </>
           )}
@@ -454,32 +470,72 @@ function LandingPage({ user }: { user: FakeUser | null }) {
 
       <section
         ref={ctaReveal.ref}
-        className={`mx-auto max-w-2xl space-y-5 border-t border-border pt-16 text-center reveal ${ctaReveal.inView ? "is-visible" : ""}`}
+        className={`mx-auto max-w-3xl rounded-2xl border border-[#0075de]/10 bg-[#e6f3fe]/35 p-8 text-center transition-colors duration-300 hover:bg-[#e6f3fe]/50 dark:border-[#62aef0]/15 dark:bg-[#1e3a5f]/20 dark:hover:bg-[#1e3a5f]/30 md:p-12 reveal ${ctaReveal.inView ? "is-visible" : ""}`}
       >
-        <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
+        <div
+          className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#0075de]/10 text-[#0075de] dark:bg-[#62aef0]/15 dark:text-[#62aef0] reveal ${ctaReveal.inView ? "is-visible" : ""}`}
+          style={{ animationDelay: "0ms" }}
+        >
+          <Rocket className="h-5 w-5" />
+        </div>
+        <h2
+          className={`text-2xl font-semibold tracking-tight md:text-3xl reveal ${ctaReveal.inView ? "is-visible" : ""}`}
+          style={{ animationDelay: "80ms" }}
+        >
           Ready to turn an idea into a shipped project?
         </h2>
-        <p className="mx-auto max-w-xl text-sm leading-relaxed text-muted-foreground md:text-base">
+        <p
+          className={`mx-auto mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground md:text-base reveal ${ctaReveal.inView ? "is-visible" : ""}`}
+          style={{ animationDelay: "160ms" }}
+        >
           Start with a clear blueprint, find the right builder, and move forward one approved
           milestone at a time.
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+        <div
+          className={`mt-6 flex flex-wrap items-center justify-center gap-3 reveal ${ctaReveal.inView ? "is-visible" : ""}`}
+          style={{ animationDelay: "240ms" }}
+        >
           {user ? (
-            <Button asChild size="lg" className="active:scale-[0.98]">
-              <Link to="/workspace">Go to workspace</Link>
+            <Button asChild size="lg" className="group active:scale-[0.98]">
+              <Link to="/workspace" onClick={(e) => handleLaunch(e, "/workspace")}>
+                Go to workspace
+                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+              </Link>
             </Button>
           ) : (
             <>
-              <Button asChild size="lg" className="active:scale-[0.98]">
-                <Link to="/signup">Get started</Link>
+              <Button asChild size="lg" className="group active:scale-[0.98]">
+                <Link to="/signup" onClick={(e) => handleLaunch(e, "/signup")}>
+                  Get started
+                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+                </Link>
               </Button>
               <Button asChild variant="ghost" size="lg" className="active:scale-[0.98]">
-                <Link to="/signin">Sign in</Link>
+                <Link to="/signin" onClick={(e) => handleLaunch(e, "/signin")}>Sign in</Link>
               </Button>
             </>
           )}
         </div>
+        <p
+          className={`mt-4 text-xs tracking-wide text-muted-foreground reveal ${ctaReveal.inView ? "is-visible" : ""}`}
+          style={{ animationDelay: "320ms" }}
+        >
+          Start with a scope · Fund only when you accept a final offer
+        </p>
       </section>
+
+      {launchingTo ? (
+        <div className="app-launch-overlay fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4">
+            <div className="app-launch-mark flex h-14 w-14 items-center justify-center rounded-2xl border border-[#0075de]/20 bg-[#e6f3fe] text-[#0075de] dark:border-[#62aef0]/20 dark:bg-[#1e3a5f]/40 dark:text-[#62aef0]">
+              <Rocket className="h-6 w-6" />
+            </div>
+            <p className="text-sm font-medium text-muted-foreground">
+              {launchingTo === "/workspace" ? "Opening workspace…" : "Opening…"}
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
