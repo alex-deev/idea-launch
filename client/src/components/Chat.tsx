@@ -648,72 +648,68 @@ export function Chat({
                         openBidsCount={clientOpenBidsCount}
                         openBidsLimit={clientOpenBidsLimit}
                         openBidProjects={clientOpenBidProjects}
+                        resetting={isResettingScope}
+                        onReset={
+                          role === "CLIENT" && projectStatus === "SCOPING" && hasReadyScopeBlueprint
+                            ? () => {
+                                if (isResettingScope) return;
+                                const confirmed = window.confirm(
+                                  "Clear the current blueprint and start over? Your current scope and answers will be removed.",
+                                );
+                                if (!confirmed) return;
+                                const socket = socketRef.current;
+                                if (!socket) {
+                                  const msg = "Not connected. Please try again.";
+                                  setActionError(msg);
+                                  toast.error(msg);
+                                  return;
+                                }
+                                setIsResettingScope(true);
+                                setActionError(null);
+                                socket.emit(
+                                  "reset_scope",
+                                  { projectId, userId },
+                                  (res: any) => {
+                                    setIsResettingScope(false);
+                                    if (res && res.ok === false) {
+                                      const msg = res.error ? String(res.error) : "Failed to reset scope";
+                                      setActionError(msg);
+                                      toast.error(msg);
+                                      return;
+                                    }
+                                    toast.success("Scope cleared. You can start again.");
+                                  },
+                                );
+                              }
+                            : undefined
+                        }
                       />
                       {role === "CLIENT" && projectStatus === "SCOPING" && hasReadyScopeBlueprint ? (
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <Button
-                            variant="outline"
-                            className="w-full"
-                            onClick={() => {
-                              setActionError(null);
-                              socketRef.current?.emit(
-                                "send_message",
-                                {
-                                  projectId,
-                                  senderId: userId,
-                                  type: "TEXT",
-                                  content: "[TRIGGER_SCOPE_GENERATION]",
-                                  payload: { refine: true, action: "ask_more" },
-                                },
-                                (res: any) => {
-                                  if (res && res.ok === false && res.error) {
-                                    setActionError(String(res.error));
-                                    toast.error(String(res.error));
-                                  }
-                                },
-                              );
-                            }}
-                          >
-                            Refine scope with AI
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="w-full text-destructive hover:text-destructive"
-                            disabled={isResettingScope}
-                            onClick={() => {
-                              if (isResettingScope) return;
-                              const confirmed = window.confirm(
-                                "Clear the current blueprint and start over? Your current scope and answers will be removed.",
-                              );
-                              if (!confirmed) return;
-                              const socket = socketRef.current;
-                              if (!socket) {
-                                const msg = "Not connected. Please try again.";
-                                setActionError(msg);
-                                toast.error(msg);
-                                return;
-                              }
-                              setIsResettingScope(true);
-                              setActionError(null);
-                              socket.emit(
-                                "reset_scope",
-                                { projectId, userId },
-                                (res: any) => {
-                                  setIsResettingScope(false);
-                                  if (res && res.ok === false) {
-                                    const msg = res.error ? String(res.error) : "Failed to reset scope";
-                                    setActionError(msg);
-                                    toast.error(msg);
-                                    return;
-                                  }
-                                  toast.success("Scope cleared. You can start again.");
-                                },
-                              );
-                            }}
-                          >
-                            {isResettingScope ? "Resetting..." : "Start over"}
-                          </Button>
-                        </div>
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => {
+                            setActionError(null);
+                            socketRef.current?.emit(
+                              "send_message",
+                              {
+                                projectId,
+                                senderId: userId,
+                                type: "TEXT",
+                                content: "[TRIGGER_SCOPE_GENERATION]",
+                                payload: { refine: true, action: "ask_more" },
+                              },
+                              (res: any) => {
+                                if (res && res.ok === false && res.error) {
+                                  setActionError(String(res.error));
+                                  toast.error(String(res.error));
+                                }
+                              },
+                            );
+                          }}
+                        >
+                          Refine scope with AI
+                        </Button>
                       ) : null}
                     </div>
                   ) : (

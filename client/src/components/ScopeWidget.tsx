@@ -39,6 +39,8 @@ interface ScopeWidgetProps {
   openBidsCount?: number;
   openBidsLimit?: number;
   openBidProjects?: OpenBidProjectSummary[];
+  onReset?: () => void;
+  resetting?: boolean;
 }
 
 export function ScopeWidget({
@@ -52,6 +54,8 @@ export function ScopeWidget({
   openBidsCount = 0,
   openBidsLimit = 3,
   openBidProjects = [],
+  onReset,
+  resetting = false,
 }: ScopeWidgetProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<ScopePayload>(payload ?? {});
@@ -141,14 +145,28 @@ export function ScopeWidget({
             )}
           </CardTitle>
           {canEdit ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => (isEditing ? setIsEditing(false) : startEditing())}
-            >
-              {isEditing ? "Cancel" : "Edit"}
-            </Button>
+            <div className="flex items-center gap-2">
+              {!isEditing && isRefinementReady && onReset ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
+                  onClick={onReset}
+                  disabled={resetting}
+                >
+                  {resetting ? "Resetting..." : "Start over"}
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => (isEditing ? setIsEditing(false) : startEditing())}
+              >
+                {isEditing ? "Cancel" : "Edit"}
+              </Button>
+            </div>
           ) : null}
         </div>
       </CardHeader>
