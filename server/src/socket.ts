@@ -1003,6 +1003,46 @@ export function initializeSocket(httpServer: HttpServer) {
       }
     });
 
+    socket.on("reset_scope", async (data: any, ack?: (response: any) => void) => {
+      try {
+        if (!data?.projectId) {
+          ack?.({ ok: false, error: "projectId is required" });
+          return;
+        }
+        const project = await prisma.project.findUnique({
+          where: { id: data.projectId },
+          select: { id: true, clientId: true, status: true },
+        });
+        if (!project) {
+          ack?.({ ok: false, error: "Project not found" });
+          return;
+        }
+        const actorId = (data.userId ?? socket.data.userId ?? null) as string | null;
+        if (actorId !== project.clientId) {
+          ack?.({ ok: false, error: "Only the project client can reset scope" });
+          return;
+        }
+        if (project.status !== "SCOPING") {
+          ack?.({ ok: false, error: "Scope can only be reset while the project is in scoping" });
+          return;
+        }
+
+        await prisma.message.deleteMany({
+          where: { projectId: data.projectId, type: "SCOPE_WIDGET" as any },
+        });
+
+        const messages = await prisma.message.findMany({
+          where: { projectId: data.projectId },
+          orderBy: { createdAt: "asc" },
+          include: { sender: { select: { id: true, name: true, image: true } } },
+        });
+        io.to(data.projectId).emit("message_history", { messages });
+        ack?.({ ok: true });
+      } catch (error) {
+        ack?.({ ok: false, error: (error as Error).message });
+      }
+    });
+
     // ---- Offer workflow (v2 bundle contract) ----
 
     socket.on("submit_offer", async (data: any, ack?: (response: any) => void) => {
