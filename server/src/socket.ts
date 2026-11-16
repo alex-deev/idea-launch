@@ -19,7 +19,13 @@ import {
   validateBundleSubmission,
 } from "./lib/deliverables.js";
 import { fundEscrow, releaseMilestone } from "./services/escrow.js";
-import { synthesizeScope } from "./services/synthesis.js";
+import {
+  synthesizeScope,
+  type RefinementAnswer,
+  type ScopeRefinementQuestion,
+  type SynthesisInput,
+  MAX_REFINEMENT_ROUNDS,
+} from "./services/synthesis.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -173,6 +179,46 @@ function normalizeScopePayload(payload: unknown, totalCents: number) {
   return base;
 }
 
+function isRecord(v: unknown): v is JsonRecord {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function latestScopeMessagePayload(projectId: string) {
+  return prisma.message.findFirst({
+    where: { projectId, type: "SCOPE_WIDGET" as any },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+function normalizeRefinementAnswers(raw: unknown): RefinementAnswer[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((a) => {
+      if (!isRecord(a)) return null;
+      const questionId = typeof a.questionId === "string" ? a.questionId.trim() : "";
+      const question = typeof a.question === "string" ? a.question.trim() : "";
+      const answer = typeof a.answer === "string" ? a.answer.trim() : "";
+      if (!question || !answer) return null;
+      return { questionId: questionId || question.slice(0, 32), question, answer };
+    })
+    .filter((v): v is RefinementAnswer => Boolean(v));
+}
+
+function normalizeQuestions(raw: unknown): ScopeRefinementQuestion[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ScopeRefinementQuestion[] = [];
+  raw.forEach((q, i) => {
+    if (!isRecord(q)) return;
+    const id = typeof q.id === "string" && q.id.trim() ? q.id.trim() : `q${i + 1}`;
+    const question = typeof q.question === "string" ? q.question.trim() : "";
+    if (!question) return;
+    const hint = typeof q.hint === "string" && q.hint.trim() ? q.hint.trim() : undefined;
+    const required = q.required === false ? false : true;
+    out.push({ id, question, ...(hint ? { hint } : {}), required });
+  });
+  return out;
+}
+
 function canSendFreeformText(project: any, senderId: string | null) {
   if (!project || !senderId) return false;
   if (project.status === "ACTIVE") return true;
@@ -277,55 +323,178 @@ export function initializeSocket(httpServer: HttpServer) {
               return;
             }
 
+            const prevScope = await latestScopeMessagePayload(data.projectId);
+            const prevPayload = isRecord(prevScope?.payload) ? (prevScope!.payload as JsonRecord) : {};
+            const prevRefinement = isRecord(prevPayload.refinement)
+              ? (prevPayload.refinement as JsonRecord)
+              : {};
+            const prevIntake = isRecord(prevRefinement.intake) ? (prevRefinement.intake as JsonRecord) : {};
+
+            const incomingPayload = isRecord(data.payload) ? (data.payload as JsonRecord) : {};
+            const isRefineTurn =
+              incomingPayload.refine === true ||
+              Array.isArray(incomingPayload.answers) ||
+              incomingPayload.action === "refine" ||
+              incomingPayload.action === "continue";
+
             const idea =
+              (typeof incomingPayload.idea === "string" && incomingPayload.idea.trim()) ||
+              (typeof prevIntake.idea === "string" && prevIntake.idea.trim()) ||
               String(data.content).split(TRIGGER).join(" ").trim() ||
               project.title ||
               "A new software project";
 
-            const requestedBudget = Number(data.payload?.budgetCents);
+            const requestedBudget = Number(incomingPayload.budgetCents);
+            const prevBudget = Number(prevIntake.budgetCents ?? prevPayload.budgetCents);
             const budgetCents =
               Number.isInteger(requestedBudget) && requestedBudget > 0
                 ? requestedBudget
-                : project.totalEscrow || undefined;
+                : Number.isInteger(prevBudget) && prevBudget > 0
+                  ? prevBudget
+                  : project.totalEscrow || undefined;
 
-            const appKinds = Array.isArray(data.payload?.appKinds)
-              ? (data.payload.appKinds as unknown[]).filter(
+            const appKinds = Array.isArray(incomingPayload.appKinds)
+              ? (incomingPayload.appKinds as unknown[]).filter(
                   (v): v is string => typeof v === "string" && v.trim().length > 0,
                 )
-              : [];
+              : Array.isArray(prevIntake.appKinds)
+                ? (prevIntake.appKinds as unknown[]).filter(
+                    (v): v is string => typeof v === "string" && v.trim().length > 0,
+                  )
+                : [];
             const appKindOther =
-              typeof data.payload?.appKindOther === "string" && data.payload.appKindOther.trim()
-                ? data.payload.appKindOther.trim()
-                : undefined;
+              typeof incomingPayload.appKindOther === "string" && incomingPayload.appKindOther.trim()
+                ? incomingPayload.appKindOther.trim()
+                : typeof prevIntake.appKindOther === "string" && prevIntake.appKindOther.trim()
+                  ? (prevIntake.appKindOther as string).trim()
+                  : undefined;
+            const timeline =
+              typeof incomingPayload.timeline === "string" && incomingPayload.timeline.trim()
+                ? incomingPayload.timeline.trim()
+                : typeof prevIntake.timeline === "string" && prevIntake.timeline.trim()
+                  ? (prevIntake.timeline as string).trim()
+                  : undefined;
 
-            const { blueprint, source } = await synthesizeScope({
+            const prevAnswers = normalizeRefinementAnswers(prevRefinement.answers);
+            const newAnswers = normalizeRefinementAnswers(incomingPayload.answers);
+            const allAnswers = isRefineTurn ? [...prevAnswers, ...newAnswers] : [];
+            const previousQuestions = normalizeQuestions(prevRefinement.questions);
+            const previousContextSummary =
+              typeof prevRefinement.contextSummary === "string" ? prevRefinement.contextSummary : undefined;
+
+            const prevRound =
+              typeof prevRefinement.round === "number" && Number.isFinite(prevRefinement.round)
+                ? prevRefinement.round
+                : 0;
+            const round = isRefineTurn ? prevRound + 1 : 0;
+            const forceReady =
+              incomingPayload.forceReady === true ||
+              incomingPayload.action === "generate_ready" ||
+              round >= MAX_REFINEMENT_ROUNDS;
+
+            const synthesisInput: SynthesisInput = {
               idea,
               budgetCents,
-              timeline: data.payload?.timeline,
+              timeline,
               appKinds,
               appKindOther,
-            });
-            console.info(`[synthesis] generated scope via ${source}`);
+              refinementAnswers: allAnswers,
+              previousQuestions,
+              previousContextSummary,
+              round,
+              forceReady,
+            };
 
-            const normalizedTotal = resolveProjectTotal(budgetCents, blueprint.milestones);
-            const scopePayload = normalizeScopePayload(
-              { ...blueprint, budgetCents: normalizedTotal, appKinds, appKindOther },
-              normalizedTotal,
-            );
+            const result = await synthesizeScope(synthesisInput);
+            console.info(`[synthesis] scope ${result.status} via ${result.source} (round ${round})`);
 
-            const message = await prisma.message.create({
-              data: {
-                projectId: data.projectId,
-                senderId,
-                type: "SCOPE_WIDGET" as any,
-                content: blueprint.title,
-                payload: scopePayload as any,
-              },
-              include: { sender: { select: { id: true, name: true, image: true } } },
-            });
+            const intake = {
+              idea,
+              budgetCents: budgetCents ?? project.totalEscrow ?? 100000,
+              timeline: timeline ?? "",
+              appKinds,
+              ...(appKindOther ? { appKindOther } : {}),
+            };
 
-            io.to(data.projectId).emit("new_message", message);
-            ack?.({ ok: true, message });
+            let scopePayload: JsonRecord;
+            let content: string;
+            if (result.status === "ready") {
+              const normalizedTotal = resolveProjectTotal(budgetCents, result.blueprint.milestones);
+              scopePayload = normalizeScopePayload(
+                { ...result.blueprint, budgetCents: normalizedTotal, appKinds, appKindOther },
+                normalizedTotal,
+              );
+              scopePayload.refinement = {
+                status: "ready",
+                round,
+                intake,
+                answers: allAnswers,
+                contextSummary: result.contextSummary ?? previousContextSummary ?? null,
+                source: result.source,
+              } as any;
+              content = result.blueprint.title;
+            } else {
+              const normalizedTotal =
+                Number.isInteger(budgetCents) && (budgetCents as number) > 0
+                  ? (budgetCents as number)
+                  : project.totalEscrow || 100000;
+              scopePayload = {
+                title: (prevPayload.title as string) || project.title || "Project Scope Blueprint",
+                executiveSummary:
+                  (prevPayload.executiveSummary as string) ||
+                  "Answer a few questions so we can refine your project scope.",
+                technicalArchitecture: (prevPayload.technicalArchitecture as string) || "",
+                coreFeatures: Array.isArray(prevPayload.coreFeatures) ? prevPayload.coreFeatures : [],
+                outOfScope: Array.isArray(prevPayload.outOfScope) ? prevPayload.outOfScope : [],
+                appKinds,
+                ...(appKindOther ? { appKindOther } : {}),
+                budgetCents: normalizedTotal,
+                milestones: buildMilestones(normalizedTotal).map(({ title, amount, releasePercent }) => ({
+                  title,
+                  amount,
+                  releasePercent,
+                })),
+                refinement: {
+                  status: "needs_info",
+                  round,
+                  intake,
+                  questions: result.questions,
+                  answers: allAnswers,
+                  contextSummary: result.contextSummary ?? previousContextSummary ?? null,
+                  source: result.source,
+                },
+              } as any;
+              content = "Scope refinement: more details needed";
+            }
+
+            // Upsert: update latest SCOPE_WIDGET in refinement flow when one exists, else create.
+            let message;
+            if (prevScope) {
+              message = await prisma.message.update({
+                where: { id: prevScope.id },
+                data: {
+                  senderId,
+                  content,
+                  payload: scopePayload as any,
+                },
+                include: { sender: { select: { id: true, name: true, image: true } } },
+              });
+              io.to(data.projectId).emit("message_updated", message);
+            } else {
+              message = await prisma.message.create({
+                data: {
+                  projectId: data.projectId,
+                  senderId,
+                  type: "SCOPE_WIDGET" as any,
+                  content,
+                  payload: scopePayload as any,
+                },
+                include: { sender: { select: { id: true, name: true, image: true } } },
+              });
+              io.to(data.projectId).emit("new_message", message);
+            }
+
+            ack?.({ ok: true, message, status: result.status });
           } catch (error) {
             const failure = error as Error;
             console.error("[synthesis] scope generation failed:", failure);
@@ -768,6 +937,16 @@ export function initializeSocket(httpServer: HttpServer) {
         const basePayload =
           incomingPayload ?? (scopeMessage?.payload as JsonRecord | null) ?? {};
 
+        const refinementState =
+          isRecord((basePayload as any).refinement) ? ((basePayload as any).refinement as JsonRecord) : null;
+        if (refinementState && refinementState.status === "needs_info") {
+          ack?.({
+            ok: false,
+            error: "Please answer the remaining scoping questions before approving and publishing.",
+          });
+          return;
+        }
+
         const totalCents = resolveProjectTotal(
           (basePayload as any).budgetCents ??
             (scopeMessage?.payload as any)?.budgetCents ??
@@ -781,6 +960,10 @@ export function initializeSocket(httpServer: HttpServer) {
         }
 
         const normalizedPayload = normalizeScopePayload(basePayload, totalCents);
+        // Preserve refinement metadata (e.g. ready state/context) on the approved blueprint.
+        if (refinementState && !("refinement" in normalizedPayload)) {
+          (normalizedPayload as any).refinement = refinementState;
+        }
 
         if (scopeMessage) {
           const updatedMessage = await prisma.message.update({

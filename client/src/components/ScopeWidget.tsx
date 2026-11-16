@@ -117,6 +117,12 @@ export function ScopeWidget({
   };
 
   const scope = isEditing ? draft : normalizedView;
+  const refinement = (payload as any)?.refinement as
+    | { status?: "needs_info" | "ready"; source?: "gemini" | "fallback"; contextSummary?: string | null }
+    | undefined;
+  const refinementStatus = refinement?.status;
+  const isRefinementReady = refinementStatus !== "needs_info";
+  const isFallback = refinement?.source === "fallback";
 
   return (
     <Card className="w-full max-w-2xl border-indigo-300">
@@ -147,6 +153,15 @@ export function ScopeWidget({
         </div>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
+        {isFallback ? (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100" role="status">
+            <p className="font-medium">AI unavailable — fallback draft</p>
+            <p className="mt-1">
+              {refinement?.contextSummary ||
+                "A fallback blueprint was generated because AI scoping was unavailable. Please review and edit the details before publishing."}
+            </p>
+          </div>
+        ) : null}
         {isEditing ? (
           <>
             <section className="space-y-2">
@@ -302,42 +317,51 @@ export function ScopeWidget({
         )}
 
         {role === "CLIENT" && editable && !isEditing ? (
-          (() => {
-            const atCap = openBidsCount >= openBidsLimit;
-            const nearCap = !atCap && openBidsCount === openBidsLimit - 1;
-            return (
-              <div className="space-y-2">
-                <div className="rounded-md border bg-muted/30 p-3 text-sm">
-                  <p className="font-medium">Open for bids: {openBidsCount}/{openBidsLimit}</p>
-                  {nearCap ? (
-                    <p className="text-xs text-muted-foreground">1 slot left. Publishing this plan will use your last open slot.</p>
-                  ) : !atCap ? (
-                    <p className="text-xs text-muted-foreground">To keep projects focused and give builders timely attention, you can have up to {openBidsLimit} projects open for bids at a time.</p>
-                  ) : null}
-                </div>
-                {atCap ? (
-                  <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
-                    <p className="font-medium">You’ve reached the limit of {openBidsLimit} projects open for bids.</p>
-                    <p>To publish this plan, free a slot by accepting/funding an offer (moves a project to Active) or canceling an open project.</p>
-                    {openBidProjects.length ? (
-                      <div>
-                        <p className="font-medium">Projects currently open for bids:</p>
-                        <ul className="list-disc pl-5">
-                          {openBidProjects.map((p) => (
-                            <li key={p.id}>{p.title}</li>
-                          ))}
-                        </ul>
-                      </div>
+          !isRefinementReady ? (
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">More details needed</p>
+              <p className="text-muted-foreground">
+                Answer the AI scoping questions to finish refining your blueprint before approving and publishing.
+              </p>
+            </div>
+          ) : (
+            (() => {
+              const atCap = openBidsCount >= openBidsLimit;
+              const nearCap = !atCap && openBidsCount === openBidsLimit - 1;
+              return (
+                <div className="space-y-2">
+                  <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                    <p className="font-medium">Open for bids: {openBidsCount}/{openBidsLimit}</p>
+                    {nearCap ? (
+                      <p className="text-xs text-muted-foreground">1 slot left. Publishing this plan will use your last open slot.</p>
+                    ) : !atCap ? (
+                      <p className="text-xs text-muted-foreground">To keep projects focused and give builders timely attention, you can have up to {openBidsLimit} projects open for bids at a time.</p>
                     ) : null}
                   </div>
-                ) : null}
-                {publishError ? <p className="text-sm text-red-600">{publishError}</p> : null}
-                <Button className="w-full" onClick={handleApprove} disabled={atCap}>
-                  Approve &amp; Publish
-                </Button>
-              </div>
-            );
-          })()
+                  {atCap ? (
+                    <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+                      <p className="font-medium">You’ve reached the limit of {openBidsLimit} projects open for bids.</p>
+                      <p>To publish this plan, free a slot by accepting/funding an offer (moves a project to Active) or canceling an open project.</p>
+                      {openBidProjects.length ? (
+                        <div>
+                          <p className="font-medium">Projects currently open for bids:</p>
+                          <ul className="list-disc pl-5">
+                            {openBidProjects.map((p) => (
+                              <li key={p.id}>{p.title}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {publishError ? <p className="text-sm text-red-600">{publishError}</p> : null}
+                  <Button className="w-full" onClick={handleApprove} disabled={atCap}>
+                    Approve &amp; Publish
+                  </Button>
+                </div>
+              );
+            })()
+          )
         ) : role === "CLIENT" && editable && isEditing ? null : role === "CLIENT" ? (
           <p className="text-muted-foreground">Blueprint approved and published.</p>
         ) : (

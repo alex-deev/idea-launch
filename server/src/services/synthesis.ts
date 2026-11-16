@@ -8,12 +8,13 @@ import {
 } from "../lib/milestones.js";
 
 /**
- * Phase 2 Synthesis Agent.
+ * Phase 2 Synthesis/Refinement Agent.
  *
- * Converts a client's free-text idea into the structured scope blueprint that
- * the existing SCOPE_WIDGET UI already understands. Uses Gemini Structured
- * Outputs (responseMimeType + responseSchema) so the model must return JSON
- * matching the marketplace contract.
+ * Converts a client's idea into a delivery blueprint and can iteratively ask
+ * targeted clarifying questions (needs_info) before producing a ready blueprint.
+ * Uses Gemini Structured Outputs so the model must return JSON matching the
+ * marketplace contract. Fallback (no key) or on AI error/timeout returns a
+ * deterministic ready blueprint so scoping never blocks.
  */
 
 export const scopeBlueprintSchema = z.object({
@@ -36,73 +37,179 @@ export const scopeBlueprintSchema = z.object({
 
 export type ScopeBlueprint = z.infer<typeof scopeBlueprintSchema>;
 
+export interface RefinementAnswer {
+  questionId: string;
+  question: string;
+  answer: string;
+}
+
 export interface SynthesisInput {
   idea: string;
   budgetCents?: number;
   timeline?: string;
   appKinds?: string[];
   appKindOther?: string;
+  /** Prior refinement answers (chronological) to incorporate. */
+  refinementAnswers?: RefinementAnswer[];
+  /** Previous AI questions asked in the last turn (for context). */
+  previousQuestions?: { id: string; question: string }[];
+  /** Prior context summary from earlier refinement turns. */
+  previousContextSummary?: string;
+  /** 0-based refinement round (0 = initial intake). */
+  round?: number;
+  /** Force a ready blueprint when limits are reached. */
+  forceReady?: boolean;
 }
 
-export interface SynthesisResult {
-  blueprint: ScopeBlueprint;
+export interface ScopeRefinementQuestion {
+  id: string;
+  question: string;
+  hint?: string;
+  required?: boolean;
+}
+
+export interface SynthesisNeedsInfo {
+  status: "needs_info";
+  questions: ScopeRefinementQuestion[];
+  contextSummary?: string;
   source: "gemini" | "fallback";
 }
 
-const DEFAULT_BUDGET_CENTS = 100_000; // $1,000.00
+export interface SynthesisReady {
+  status: "ready";
+  blueprint: ScopeBlueprint;
+  contextSummary?: string;
+  source: "gemini" | "fallback";
+}
 
-const SYSTEM_PROMPT = `You are the Idea Launch scoping agent. Convert a client's software idea into a delivery blueprint for a milestone-based escrow marketplace.
+export type SynthesisResult = SynthesisNeedsInfo | SynthesisReady;
+
+const DEFAULT_BUDGET_CENTS = 100_000; // $1,000.00
+export const MAX_REFINEMENT_ROUNDS = 3;
+export const MAX_REFINEMENT_QUESTIONS = 4;
+const GEMINI_TIMEOUT_MS = 30_000;
+
+const READY_SYSTEM_PROMPT = `You are the Idea Launch scoping agent. Convert a client's software idea and any clarification answers into a delivery blueprint for a milestone-based escrow marketplace.
 
 Rules:
 - Amounts are integer USD cents. The three milestone amounts MUST sum exactly to the client's stated budget.
 - Use exactly three milestones in this order: Initial Demo, Final Demo, Deployment.
 - Milestone payout split is business-model auto-calculated: Initial Demo 30%, Final Demo 40%, Deployment 30% of the total budget.
 - Agreement is implicit when the client accepts the final offer (not a milestone and not chargeable).
-- Consider the client's selected "App kind" (platform target) when shaping the architecture, features, and out-of-scope items (e.g. website, web app, mobile app, desktop app, or other targets). Keep recommendations concrete and appropriate for the stated platform(s).
-- If "Other" app kind details are provided, reflect them.
+- Consider the client's selected "App kind" (platform target) when shaping the architecture, features, and out-of-scope items. Keep recommendations concrete and appropriate for the stated platform(s).
+- If "Other" app kind details are provided, reflect them. Incorporate all provided clarification answers.
 - Do not assume a specific tech stack unless implied by the idea/platform; be practical and clear.
-- Be concrete and concise. Do not return markdown or commentary outside the JSON object.`;
+- Be concrete and concise. Return only the JSON object.`;
 
-const GEMINI_RESPONSE_SCHEMA = {
+const REFINE_SYSTEM_PROMPT = `You are the Idea Launch scoping agent helping clarify a client's software idea before producing a delivery blueprint.
+
+Decide the next step:
+- Return status "needs_info" with 1-${MAX_REFINEMENT_QUESTIONS} targeted, high-signal clarifying questions when key details are missing or ambiguous (e.g. target users/audience, core user flows, must-have vs nice-to-have, integrations/data, platforms/devices specifics, constraints/success criteria). Ask only questions that materially improve the scope. Keep questions concise and specific.
+- Return status "ready" with a complete blueprint when the idea and any provided answers are sufficient to scope confidently.
+
+Blueprint rules (when ready):
+- Amounts are integer USD cents. The three milestone amounts MUST sum exactly to the client's stated budget.
+- Exactly three milestones in this order: Initial Demo, Final Demo, Deployment. Split 30% / 40% / 30%.
+- Agreement is implicit at final-offer acceptance (not a milestone). Consider app kind/platform targets. Incorporate clarification answers. Be concrete and practical.
+- Return only the JSON object.`;
+
+const BLUEPRINT_PROPERTIES = {
+  title: { type: Type.STRING },
+  executiveSummary: { type: Type.STRING },
+  technicalArchitecture: { type: Type.STRING },
+  coreFeatures: { type: Type.ARRAY, items: { type: Type.STRING } },
+  milestones: {
+    type: Type.ARRAY,
+    items: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING },
+        amount: { type: Type.INTEGER },
+      },
+      required: ["title", "amount"],
+    },
+  },
+  outOfScope: { type: Type.ARRAY, items: { type: Type.STRING } },
+  appKinds: { type: Type.ARRAY, items: { type: Type.STRING } },
+  appKindOther: { type: Type.STRING },
+};
+
+const READY_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    title: { type: Type.STRING },
-    executiveSummary: { type: Type.STRING },
-    technicalArchitecture: { type: Type.STRING },
-    coreFeatures: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
+    status: { type: Type.STRING, enum: ["ready"] },
+    contextSummary: { type: Type.STRING },
+    blueprint: {
+      type: Type.OBJECT,
+      properties: BLUEPRINT_PROPERTIES,
+      required: [
+        "title",
+        "executiveSummary",
+        "technicalArchitecture",
+        "coreFeatures",
+        "milestones",
+        "outOfScope",
+      ],
     },
-    milestones: {
+  },
+  required: ["status", "blueprint"],
+};
+
+const REFINE_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    status: { type: Type.STRING, enum: ["needs_info", "ready"] },
+    contextSummary: { type: Type.STRING },
+    questions: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          title: { type: Type.STRING },
-          amount: { type: Type.INTEGER },
+          id: { type: Type.STRING },
+          question: { type: Type.STRING },
+          hint: { type: Type.STRING },
+          required: { type: Type.BOOLEAN },
         },
-        required: ["title", "amount"],
+        required: ["id", "question"],
       },
     },
-    outOfScope: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
+    blueprint: {
+      type: Type.OBJECT,
+      properties: BLUEPRINT_PROPERTIES,
+      required: [
+        "title",
+        "executiveSummary",
+        "technicalArchitecture",
+        "coreFeatures",
+        "milestones",
+        "outOfScope",
+      ],
     },
-    appKinds: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-    },
-    appKindOther: { type: Type.STRING },
   },
-  required: [
-    "title",
-    "executiveSummary",
-    "technicalArchitecture",
-    "coreFeatures",
-    "milestones",
-    "outOfScope",
-  ],
+  required: ["status"],
 };
+
+const needsInfoSchema = z.object({
+  status: z.literal("needs_info"),
+  questions: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        question: z.string().min(1),
+        hint: z.string().min(1).optional(),
+        required: z.boolean().optional(),
+      }),
+    )
+    .min(1)
+    .max(MAX_REFINEMENT_QUESTIONS),
+  contextSummary: z.string().min(1).optional(),
+});
+
+const readyResponseSchema = z.object({
+  status: z.literal("ready"),
+  blueprint: scopeBlueprintSchema,
+  contextSummary: z.string().min(1).optional(),
+});
 
 function normalizeAppKinds(input: SynthesisInput): string[] {
   return Array.isArray(input.appKinds)
@@ -123,36 +230,66 @@ function describeAppKinds(input: SynthesisInput): string {
   return parts.length ? parts.join(", ") : "Not specified";
 }
 
-/**
- * Enforce fixed milestone titles/order and the 30/40/30 business-model split
- * so escrow math never drifts from the stated budget. Preserve app kind fields.
- */
-function normalizeBlueprint(
+export function normalizeBlueprint(
   blueprint: ScopeBlueprint,
   budgetCents: number,
-  input: SynthesisInput,
+  input: Pick<SynthesisInput, "appKinds" | "appKindOther">,
 ): ScopeBlueprint {
   const amounts = calculateMilestoneAmounts(budgetCents);
   const milestones = MILESTONE_TITLES.map((title, index) => ({
     title,
     amount: amounts[index],
   }));
-  const appKinds = normalizeAppKinds(input);
-  const appKindOther = normalizeAppKindOther(input);
+  const appKinds = normalizeAppKinds(input as SynthesisInput);
+  const appKindOther = normalizeAppKindOther(input as SynthesisInput);
   return {
     ...blueprint,
     milestones,
     appKinds: appKinds.length ? appKinds : (blueprint.appKinds ?? []),
-    ...(appKindOther ? { appKindOther } : blueprint.appKindOther ? { appKindOther: blueprint.appKindOther } : {}),
+    ...(appKindOther
+      ? { appKindOther }
+      : blueprint.appKindOther
+        ? { appKindOther: blueprint.appKindOther }
+        : {}),
   };
 }
 
-export function createFallbackBlueprint(input: SynthesisInput): ScopeBlueprint {
+function formatAnswers(answers: RefinementAnswer[] | undefined): string {
+  if (!Array.isArray(answers) || answers.length === 0) return "";
+  return answers
+    .filter((a) => a && typeof a.answer === "string" && a.answer.trim())
+    .map((a, i) => `Q${i + 1}: ${a.question}\nA${i + 1}: ${a.answer.trim()}`)
+    .join("\n\n");
+}
+
+function buildContext(input: SynthesisInput, budgetCents: number): string {
+  const appKindText = describeAppKinds(input);
+  const answersText = formatAnswers(input.refinementAnswers);
+  const prevSummary = input.previousContextSummary?.trim();
+  return [
+    `Client idea: ${input.idea}`,
+    `Budget (cents): ${budgetCents}`,
+    input.timeline ? `Timeline: ${input.timeline}` : "",
+    `App kind (platform targets): ${appKindText}`,
+    prevSummary ? `Previous context summary: ${prevSummary}` : "",
+    answersText ? `Clarification answers:\n${answersText}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function createFallbackBlueprint(
+  input: SynthesisInput & { budgetCents?: number },
+): ScopeBlueprint {
   const budgetCents = input.budgetCents ?? DEFAULT_BUDGET_CENTS;
-  const idea = input.idea.trim() || "A new software project";
+  const idea = (input.idea ?? "").trim() || "A new software project";
   const appKinds = normalizeAppKinds(input);
   const appKindOther = normalizeAppKindOther(input);
   const appKindText = describeAppKinds(input);
+  const answersText = formatAnswers(input.refinementAnswers);
+  const summaryExtra = answersText
+    ? ` Client details: ${answersText.replace(/\s+/g, " ").slice(0, 280)}`
+    : "";
 
   const architectureBase =
     appKinds.length || appKindOther
@@ -161,7 +298,7 @@ export function createFallbackBlueprint(input: SynthesisInput): ScopeBlueprint {
 
   return {
     title: "Project Scope Blueprint",
-    executiveSummary: `A scoped delivery plan for "${idea.slice(0, 140)}" (${appKindText}), covering architecture, features, and milestone-based delivery.`,
+    executiveSummary: `A scoped delivery plan for "${idea.slice(0, 140)}" (${appKindText}), covering architecture, features, and milestone-based delivery.${summaryExtra}`,
     technicalArchitecture: architectureBase,
     coreFeatures: [
       "Clear user experience for the target platform(s)",
@@ -179,56 +316,192 @@ export function createFallbackBlueprint(input: SynthesisInput): ScopeBlueprint {
   };
 }
 
-/**
- * Generate a scope blueprint. Falls back to a deterministic blueprint when no
- * Gemini key is configured so local development works without credentials.
- * API/validation failures are surfaced to the caller.
- */
-export async function synthesizeScope(
+function coerceQuestions(raw: ScopeRefinementQuestion[]): ScopeRefinementQuestion[] {
+  return raw.slice(0, MAX_REFINEMENT_QUESTIONS).map((q, i) => ({
+    id: q.id?.trim() || `q${i + 1}`,
+    question: q.question.trim(),
+    ...(q.hint?.trim() ? { hint: q.hint.trim() } : {}),
+    ...(q.required === false ? { required: false } : { required: true }),
+  }));
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function fallbackReady(
   input: SynthesisInput,
+  budgetCents: number,
+  reason: string,
+): SynthesisReady {
+  console.warn(`[synthesis] ${reason}; using deterministic fallback blueprint.`);
+  return {
+    status: "ready",
+    blueprint: createFallbackBlueprint({ ...input, budgetCents }),
+    contextSummary:
+      "A fallback blueprint was generated because AI scoping was unavailable. You can edit the details and refine further if needed.",
+    source: "fallback",
+  };
+}
+
+async function synthesizeScopeWithGemini(
+  input: SynthesisInput,
+  apiKey: string,
+  budgetCents: number,
 ): Promise<SynthesisResult> {
+  const round = Math.max(0, Number(input.round ?? 0));
+  const ai = new GoogleGenAI({ apiKey });
+  const configuredModel = (process.env.GEMINI_MODEL ?? "gemini-2.5-flash").trim() || "gemini-2.5-flash";
+  const context = buildContext(input, budgetCents);
+  const candidates = Array.from(
+    new Set([
+      configuredModel,
+      configuredModel.startsWith("models/") ? configuredModel.slice("models/".length) : `models/${configuredModel}`,
+    ].filter(Boolean)),
+  );
+
+  let lastError: unknown = null;
+  for (const model of candidates) {
+    const startedAt = Date.now();
+    console.info(
+      `[synthesis] start model=${model} round=${round} forceReady=${Boolean(input.forceReady)} answers=${input.refinementAnswers?.length ?? 0}`,
+    );
+    try {
+      // Force ready if at/over limit or explicitly requested.
+      if (input.forceReady || round >= MAX_REFINEMENT_ROUNDS) {
+        const response = await withTimeout(
+          ai.models.generateContent({
+            model,
+            contents: [READY_SYSTEM_PROMPT, "", context].join("\n"),
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: READY_RESPONSE_SCHEMA,
+              temperature: 0.4,
+            },
+          }),
+          GEMINI_TIMEOUT_MS,
+          "Gemini ready synthesis",
+        );
+        const text = response.text;
+        if (!text) throw new Error("Gemini returned an empty response.");
+        const parsed = readyResponseSchema.parse(JSON.parse(text));
+        console.info(`[synthesis] ready (forced/limit) via gemini model=${model} in ${Date.now() - startedAt}ms`);
+        return {
+          status: "ready",
+          blueprint: normalizeBlueprint(parsed.blueprint, budgetCents, input),
+          contextSummary: parsed.contextSummary,
+          source: "gemini",
+        };
+      }
+
+      const response = await withTimeout(
+        ai.models.generateContent({
+          model,
+          contents: [REFINE_SYSTEM_PROMPT, "", context, "", `Refinement round: ${round}`].join("\n"),
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: REFINE_RESPONSE_SCHEMA,
+            temperature: 0.4,
+          },
+        }),
+        GEMINI_TIMEOUT_MS,
+        "Gemini refinement",
+      );
+      const text = response.text;
+      if (!text) throw new Error("Gemini returned an empty response.");
+      const raw = JSON.parse(text) as any;
+
+      if (raw?.status === "ready" && raw.blueprint) {
+        const parsed = readyResponseSchema.parse(raw);
+        console.info(`[synthesis] ready via gemini model=${model} in ${Date.now() - startedAt}ms`);
+        return {
+          status: "ready",
+          blueprint: normalizeBlueprint(parsed.blueprint, budgetCents, input),
+          contextSummary: parsed.contextSummary,
+          source: "gemini",
+        };
+      }
+
+      // Treat as needs_info when questions are present; if malformed, fall back to ready.
+      if (raw?.status === "needs_info" && Array.isArray(raw.questions) && raw.questions.length > 0) {
+        const parsed = needsInfoSchema.parse(raw);
+        console.info(
+          `[synthesis] needs_info via gemini model=${model} (${parsed.questions.length} questions) in ${Date.now() - startedAt}ms`,
+        );
+        return {
+          status: "needs_info",
+          questions: coerceQuestions(parsed.questions),
+          contextSummary: parsed.contextSummary,
+          source: "gemini",
+        };
+      }
+
+      // If the model returned an ambiguous/empty needs_info, produce a ready blueprint.
+      const fallbackResponse = await withTimeout(
+        ai.models.generateContent({
+          model,
+          contents: [READY_SYSTEM_PROMPT, "", context].join("\n"),
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: READY_RESPONSE_SCHEMA,
+            temperature: 0.4,
+          },
+        }),
+        GEMINI_TIMEOUT_MS,
+        "Gemini ready fallback",
+      );
+      const readyText = fallbackResponse.text;
+      if (!readyText) throw new Error("Gemini returned an empty response.");
+      const parsedReady = readyResponseSchema.parse(JSON.parse(readyText));
+      console.info(`[synthesis] ready (ambiguity fallback) via gemini model=${model} in ${Date.now() - startedAt}ms`);
+      return {
+        status: "ready",
+        blueprint: normalizeBlueprint(parsedReady.blueprint, budgetCents, input),
+        contextSummary: parsedReady.contextSummary,
+        source: "gemini",
+      };
+    } catch (error) {
+      lastError = error;
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(`[synthesis] attempt failed model=${model} in ${Date.now() - startedAt}ms: ${reason}`);
+      // try next candidate
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "Gemini synthesis failed"));
+}
+
+/**
+ * Generate scope refinement: returns targeted questions (needs_info) or a
+ * ready, normalized blueprint. Fallback (no key) or any Gemini error/timeout
+ * returns a deterministic ready blueprint so scoping never blocks.
+ */
+export async function synthesizeScope(input: SynthesisInput): Promise<SynthesisResult> {
   const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   const budgetCents = input.budgetCents ?? DEFAULT_BUDGET_CENTS;
-  const appKindText = describeAppKinds(input);
 
   if (!apiKey) {
-    console.warn(
-      "[synthesis] GEMINI_API_KEY is not set; using deterministic fallback blueprint.",
+    return fallbackReady(
+      input,
+      budgetCents,
+      "GEMINI_API_KEY is not set",
     );
-    return {
-      blueprint: createFallbackBlueprint({ ...input, budgetCents }),
-      source: "fallback",
-    };
   }
 
-  const ai = new GoogleGenAI({ apiKey });
-  const response = await ai.models.generateContent({
-    model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
-    contents: [
-      SYSTEM_PROMPT,
-      "",
-      `Client idea: ${input.idea}`,
-      `Budget (cents): ${budgetCents}`,
-      input.timeline ? `Timeline: ${input.timeline}` : "",
-      `App kind (platform targets): ${appKindText}`,
-    ]
-      .filter(Boolean)
-      .join("\n"),
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: GEMINI_RESPONSE_SCHEMA,
-      temperature: 0.4,
-    },
-  });
-
-  const text = response.text;
-  if (!text) {
-    throw new Error("Gemini returned an empty response.");
+  try {
+    return await synthesizeScopeWithGemini(input, apiKey, budgetCents);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return fallbackReady(input, budgetCents, `Gemini synthesis failed: ${reason}`);
   }
-
-  const parsed = scopeBlueprintSchema.parse(JSON.parse(text));
-  return {
-    blueprint: normalizeBlueprint(parsed, budgetCents, input),
-    source: "gemini",
-  };
 }

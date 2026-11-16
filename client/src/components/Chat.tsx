@@ -24,6 +24,7 @@ import { BuilderPayoutDialog, ClientCongratsDialog } from "@/components/Deployme
 import { OffersPanel, type OfferRecord } from "@/components/OfferWidget";
 import { ProjectControls } from "@/components/ProjectControls";
 import { ScopeIntakeForm } from "@/components/ScopeIntakeForm";
+import { ScopeRefinementPanel, type RefinementState } from "@/components/ScopeRefinementPanel";
 import { ScopeWidget } from "@/components/ScopeWidget";
 import { SOCKET_URL } from "@/lib/api";
 import { emitWithAck } from "@/lib/socketAck";
@@ -103,10 +104,8 @@ export function Chat({
   const [clientCongratsOpen, setClientCongratsOpen] = useState(false);
   const seenReleasesRef = useRef<Set<string>>(new Set());
 
-  const showIntakeForm =
-    role === "CLIENT" &&
-    projectStatus === "SCOPING" &&
-    !messages.some((message) => message.type === "SCOPE_WIDGET");
+  const hasScopeMessage = messages.some((message) => message.type === "SCOPE_WIDGET");
+  const showIntakeForm = role === "CLIENT" && projectStatus === "SCOPING" && !hasScopeMessage;
 
   const [controlsOpen, setControlsOpen] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
@@ -272,8 +271,12 @@ export function Chat({
   }, [messages, offers, projectStatus]);
 
   const latestScopeMessage = [...messages].reverse().find((message) => message.type === "SCOPE_WIDGET");
-  const latestScopePayload = latestScopeMessage?.payload as ScopePayload | undefined;
-  const showHeaderScopeButton = !!latestScopeMessage && projectStatus !== "SCOPING";
+  const latestScopePayload = latestScopeMessage?.payload as (ScopePayload & { refinement?: RefinementState }) | undefined;
+  const scopeRefinement = latestScopePayload?.refinement as RefinementState | undefined;
+  const scopeNeedsInfo = scopeRefinement?.status === "needs_info";
+  const hasReadyScopeBlueprint =
+    !!latestScopeMessage && (!scopeRefinement || scopeRefinement.status === "ready");
+  const showHeaderScopeButton = !!latestScopeMessage && projectStatus !== "SCOPING" && hasReadyScopeBlueprint;
 
   const scopeTotalCents =
     (typeof latestScopePayload?.budgetCents === "number" && latestScopePayload.budgetCents > 0
@@ -605,7 +608,7 @@ export function Chat({
             <div className="relative min-h-0 flex-1">
               <div className="absolute inset-0 overflow-y-auto p-4">
                 <div className="mx-auto flex min-h-full w-full max-w-xl items-start justify-center">
-                  {showIntakeForm ? (
+                  {showIntakeForm && !latestScopeMessage ? (
                     <div key="intake" className="w-full workspace-enter">
                       <ScopeIntakeForm
                         projectId={projectId}
@@ -614,20 +617,64 @@ export function Chat({
                         projectTotal={project?.totalEscrow ?? 0}
                       />
                     </div>
+                  ) : latestScopeMessage && scopeNeedsInfo ? (
+                    role === "CLIENT" ? (
+                      <div key="refine" className="w-full workspace-enter">
+                        <ScopeRefinementPanel
+                          projectId={projectId}
+                          userId={userId}
+                          socket={socketRef.current}
+                          refinement={scopeRefinement ?? { status: "needs_info", questions: [] }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <p className="text-muted-foreground">
+                          The client is refining the project scope with AI. You will be able to submit offers once it is published.
+                        </p>
+                      </div>
+                    )
                   ) : latestScopeMessage ? (
-                    <div key="scope" className="w-full workspace-enter">
+                    <div key="scope" className="w-full space-y-3 workspace-enter">
                       <ScopeWidget
                         socket={socketRef.current}
                         projectId={projectId}
                         role={role}
                         payload={latestScopePayload}
                         messageId={latestScopeMessage.id}
-                        editable={projectStatus === "SCOPING"}
+                        editable={projectStatus === "SCOPING" && hasReadyScopeBlueprint}
                         totalCents={scopeTotalCents || project?.totalEscrow || undefined}
                         openBidsCount={clientOpenBidsCount}
                         openBidsLimit={clientOpenBidsLimit}
                         openBidProjects={clientOpenBidProjects}
                       />
+                      {role === "CLIENT" && projectStatus === "SCOPING" && hasReadyScopeBlueprint ? (
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => {
+                            setActionError(null);
+                            socketRef.current?.emit(
+                              "send_message",
+                              {
+                                projectId,
+                                senderId: userId,
+                                type: "TEXT",
+                                content: "[TRIGGER_SCOPE_GENERATION]",
+                                payload: { refine: true, action: "ask_more" },
+                              },
+                              (res: any) => {
+                                if (res && res.ok === false && res.error) {
+                                  setActionError(String(res.error));
+                                  toast.error(String(res.error));
+                                }
+                              },
+                            );
+                          }}
+                        >
+                          Refine scope with AI
+                        </Button>
+                      ) : null}
                     </div>
                   ) : (
                     <div className="flex h-full w-full items-center justify-center">

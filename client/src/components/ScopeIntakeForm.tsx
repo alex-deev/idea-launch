@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Socket } from "socket.io-client";
 import { toast } from "sonner";
 
@@ -34,6 +34,17 @@ export function ScopeIntakeForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<"idle" | "sending" | "generating">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [takingLong, setTakingLong] = useState(false);
+
+  // Show a gentle hint if generation/refinement is taking longer than usual.
+  useEffect(() => {
+    if (!isSubmitting) {
+      setTakingLong(false);
+      return;
+    }
+    const timer = setTimeout(() => setTakingLong(true), 12000);
+    return () => clearTimeout(timer);
+  }, [isSubmitting]);
 
   const toggleAppKind = (value: string) => {
     setAppKinds((current) =>
@@ -91,10 +102,18 @@ export function ScopeIntakeForm({
         return;
       }
 
-      // On success the server emits the SCOPE_WIDGET and the intake form unmounts when scope appears.
-      // Keep submitting state until transition; reset defensively in case it remains visible.
+      // On success the server emits/updates the SCOPE_WIDGET; UI transitions to questions or blueprint.
       setStatus("generating");
-      toast.success("Scope generated");
+      const res: any = result as any;
+      const msg = res?.message?.payload?.refinement ?? res?.message?.refinement ?? null;
+      const source = msg?.source ?? res?.source ?? null;
+      if (res?.status === "needs_info") {
+        toast.success("A few questions are ready to refine your scope");
+      } else if (source === "fallback") {
+        toast.warning("Draft blueprint ready (AI unavailable — using a fallback). Please review and edit.");
+      } else {
+        toast.success("Scope blueprint ready");
+      }
       setIsSubmitting(false);
       setStatus("idle");
     } finally {
@@ -117,7 +136,9 @@ export function ScopeIntakeForm({
           <p className="mt-1 text-sm text-muted-foreground" role="status" aria-live="polite">
             {status === "sending"
               ? "Sending your idea..."
-              : "Generating scope with AI. This can take a moment."}
+              : takingLong
+                ? "Still working on your scope — taking longer than usual. Please keep this open."
+                : "Generating scope with AI. This can take a moment."}
           </p>
         ) : null}
       </div>
