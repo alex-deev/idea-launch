@@ -684,33 +684,7 @@ export function Chat({
                             : undefined
                         }
                       />
-                      {role === "CLIENT" && projectStatus === "SCOPING" && hasReadyScopeBlueprint ? (
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => {
-                            setActionError(null);
-                            socketRef.current?.emit(
-                              "send_message",
-                              {
-                                projectId,
-                                senderId: userId,
-                                type: "TEXT",
-                                content: "[TRIGGER_SCOPE_GENERATION]",
-                                payload: { refine: true, action: "ask_more" },
-                              },
-                              (res: any) => {
-                                if (res && res.ok === false && res.error) {
-                                  setActionError(String(res.error));
-                                  toast.error(String(res.error));
-                                }
-                              },
-                            );
-                          }}
-                        >
-                          Refine scope with AI
-                        </Button>
-                      ) : null}
+
                     </div>
                   ) : (
                     <div className="flex h-full w-full items-center justify-center">
