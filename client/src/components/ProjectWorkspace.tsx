@@ -310,7 +310,7 @@ export function ProjectWorkspace({
         <aside
           id={PLANS_PANEL_ID}
           aria-label="Project plans"
-          className="flex h-full w-12 shrink-0 flex-col"
+          className="flex h-full w-12 shrink-0 flex-col workspace-enter"
         >
           <button
             type="button"
@@ -319,9 +319,9 @@ export function ProjectWorkspace({
             aria-controls={PLANS_PANEL_ID}
             aria-label={`Expand project plans (${visibleProjects.length})`}
             title="Expand project plans"
-            className="flex h-full w-full flex-col items-center gap-3 rounded-lg border border-transparent py-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="flex h-full w-full flex-col items-center gap-3 rounded-lg border border-transparent py-2 text-muted-foreground transition-all duration-200 hover:bg-muted/50 hover:text-foreground active:scale-[0.98] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <PanelLeftOpen className="size-4 shrink-0" aria-hidden="true" />
+            <PanelLeftOpen className="size-4 shrink-0 transition-transform duration-200" aria-hidden="true" />
             <span className="text-[0.7rem] font-semibold tracking-wider uppercase [writing-mode:vertical-rl]">
               Project Plans
             </span>
@@ -332,7 +332,7 @@ export function ProjectWorkspace({
         <aside
           id={PLANS_PANEL_ID}
           aria-label="Project plans"
-          className="flex h-full w-80 shrink-0 flex-col gap-3 overflow-y-auto p-1"
+          className="flex h-full w-80 shrink-0 flex-col gap-3 overflow-y-auto p-1 workspace-enter"
         >
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">Project Plans</h2>
@@ -368,7 +368,7 @@ export function ProjectWorkspace({
           ) : null}
 
           {role === "CLIENT" && isCreateFormOpen ? (
-            <Card className="shrink-0">
+            <Card className="shrink-0 slide-down-fade">
               <CardContent className="space-y-1 px-2">
                 <label className="flex flex-col gap-1 text-sm font-medium" htmlFor="new-project-title">
                   Project name
@@ -445,7 +445,7 @@ export function ProjectWorkspace({
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-          <div className="space-y-2">
+          <div key={view} className="space-y-2 workspace-enter">
             {view === "available" && role === "BUILDER" ? (
               availableUnavailableReason === "AT_CAPACITY" || atAcceptedLimit ? (
                 <Card>
@@ -464,7 +464,10 @@ export function ProjectWorkspace({
                 availableProjects.map((project) => {
                   const myOfferStatus = project.offers?.[0]?.status;
                   return (
-                    <div key={project.id} className="rounded-lg border p-3">
+                    <div
+                      key={project.id}
+                      className="rounded-lg border p-3 transition-all duration-200 hover:border-foreground/20 hover:bg-muted/20"
+                    >
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">{project.title}</span>
                         <Badge variant="outline">{project.status}</Badge>
@@ -477,7 +480,7 @@ export function ProjectWorkspace({
                       ) : null}
                       <Button
                         size="sm"
-                        className="mt-3 w-full"
+                        className="mt-3 w-full active:scale-[0.98]"
                         variant="outline"
                         onClick={() => selectProject(project.id)}
                       >
@@ -509,10 +512,10 @@ export function ProjectWorkspace({
                         key={project.id}
                         type="button"
                         onClick={() => selectProject(project.id)}
-                        className={`w-full rounded-lg border p-3 text-left transition ${
+                        className={`w-full rounded-lg border p-3 text-left transition-all duration-200 active:scale-[0.99] ${
                           selectedProjectId === project.id
-                            ? "border-primary bg-primary/5"
-                            : "hover:bg-muted/50"
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "hover:border-foreground/20 hover:bg-muted/30"
                         }`}
                       >
                         <div className="flex min-w-0 items-center justify-between gap-2">
@@ -534,36 +537,42 @@ export function ProjectWorkspace({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="w-full justify-between"
+                      className="w-full justify-between transition-colors duration-200"
                       onClick={() => setIsArchivedOpen((open) => !open)}
                     >
                       Archived ({archivedProjects.length})
-                      <span>{isArchivedOpen ? "Hide" : "Show"}</span>
+                      <span className="transition-transform duration-200">{isArchivedOpen ? "Hide" : "Show"}</span>
                     </Button>
-                    {isArchivedOpen ? (
-                      <div className="mt-2 space-y-2">
-                        {archivedProjects.map((project) => (
-                          <button
-                            key={project.id}
-                            type="button"
-                            onClick={() => selectProject(project.id)}
-                            className={`w-full rounded-lg border border-dashed p-3 text-left opacity-70 transition hover:opacity-100 ${
-                              selectedProjectId === project.id
-                                ? "border-primary bg-primary/5"
-                                : "hover:bg-muted/50"
-                            }`}
-                          >
-                            <div className="flex min-w-0 items-center justify-between gap-2">
-                              <span className="min-w-0 truncate font-medium">{project.title}</span>
-                              <Badge variant="outline" className="shrink-0">{project.status}</Badge>
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              ${(project.totalEscrow / 100).toFixed(2)} · {project.milestones.length} milestones
-                            </p>
-                          </button>
-                        ))}
+                    <div
+                      className={`grid transition-all duration-200 ease-out ${
+                        isArchivedOpen ? "mt-2 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                      }`}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="space-y-2">
+                          {archivedProjects.map((project) => (
+                            <button
+                              key={project.id}
+                              type="button"
+                              onClick={() => selectProject(project.id)}
+                              className={`w-full rounded-lg border border-dashed p-3 text-left opacity-70 transition-all duration-200 hover:opacity-100 hover:border-foreground/20 hover:bg-muted/30 active:scale-[0.99] ${
+                                selectedProjectId === project.id
+                                  ? "border-primary bg-primary/5"
+                                  : "hover:bg-muted/50"
+                              }`}
+                            >
+                              <div className="flex min-w-0 items-center justify-between gap-2">
+                                <span className="min-w-0 truncate font-medium">{project.title}</span>
+                                <Badge variant="outline" className="shrink-0">{project.status}</Badge>
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                ${(project.totalEscrow / 100).toFixed(2)} · {project.milestones.length} milestones
+                              </p>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    ) : null}
+                    </div>
                   </div>
                 ) : null}
               </>
@@ -574,22 +583,23 @@ export function ProjectWorkspace({
 
       <section className="flex min-h-0 min-w-0 flex-1 flex-col">
         {selectedProjectId ? (
-          <Chat
-            key={selectedProjectId}
-            projectId={selectedProjectId}
-            userId={userId}
-            role={role}
-            name={name}
-            probationary={probationary}
-            builderAtCapacity={atAcceptedLimit}
-            clientOpenBidsCount={clientOpenBidsCount}
-            clientOpenBidsLimit={CLIENT_OPEN_BIDS_LIMIT}
-            clientOpenBidProjects={openBidProjects.map((p) => ({ id: p.id, title: p.title }))}
-            onProjectStatusChange={handleProjectStatusChange}
-            onClose={closeProject}
-          />
+          <div key={selectedProjectId} className="h-full workspace-scale-enter">
+            <Chat
+              projectId={selectedProjectId}
+              userId={userId}
+              role={role}
+              name={name}
+              probationary={probationary}
+              builderAtCapacity={atAcceptedLimit}
+              clientOpenBidsCount={clientOpenBidsCount}
+              clientOpenBidsLimit={CLIENT_OPEN_BIDS_LIMIT}
+              clientOpenBidProjects={openBidProjects.map((p) => ({ id: p.id, title: p.title }))}
+              onProjectStatusChange={handleProjectStatusChange}
+              onClose={closeProject}
+            />
+          </div>
         ) : (
-          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border/60 p-6">
+          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border/60 p-6 workspace-enter">
             <p className="max-w-xs text-center text-sm text-muted-foreground">
               No project open. Pick one from Project Plans to see its milestones and chat.
             </p>

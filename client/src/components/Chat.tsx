@@ -111,9 +111,12 @@ export function Chat({
   const [controlsOpen, setControlsOpen] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [headerScopeOpen, setHeaderScopeOpen] = useState(false);
+  const [animatedMessageIds, setAnimatedMessageIds] = useState<Set<string>>(new Set());
   const controlsRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const historyLoadedRef = useRef(false);
+  const knownMessageIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const socket = io(SOCKET_URL, {
@@ -126,6 +129,16 @@ export function Chat({
 
     socket.on("new_message", (message: ChatMessage) => {
       setMessages((prev) => [...prev, message]);
+      if (historyLoadedRef.current && !knownMessageIdsRef.current.has(message.id)) {
+        knownMessageIdsRef.current.add(message.id);
+        setAnimatedMessageIds((prev) => {
+          const next = new Set(prev);
+          next.add(message.id);
+          return next;
+        });
+      } else {
+        knownMessageIdsRef.current.add(message.id);
+      }
       if (
         offersPanelOpenRef.current &&
         showOffersBarRef.current &&
@@ -136,7 +149,11 @@ export function Chat({
     });
 
     socket.on("message_history", (data: { messages?: ChatMessage[] }) => {
-      setMessages(data?.messages ?? []);
+      const list = data?.messages ?? [];
+      knownMessageIdsRef.current = new Set(list.map((m) => m.id));
+      historyLoadedRef.current = true;
+      setAnimatedMessageIds(new Set());
+      setMessages(list);
     });
 
     socket.on("message_updated", (message: ChatMessage) => {
@@ -535,7 +552,7 @@ export function Chat({
 
   if (isScopingTakeover) {
     return (
-      <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-border/60">
+      <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-border/60 workspace-enter">
         <Card size="sm" className="flex min-h-0 flex-1 flex-col gap-0 overflow-visible ring-0 py-0">
           <CardHeader className="shrink-0 !flex items-center justify-between border-b border-border/60 pt-2">
             <div className="flex w-full items-center justify-between gap-2">
@@ -559,7 +576,7 @@ export function Chat({
               <div className="absolute inset-0 overflow-y-auto p-4">
                 <div className="mx-auto flex min-h-full w-full max-w-xl items-start justify-center">
                   {showIntakeForm ? (
-                    <div className="w-full">
+                    <div key="intake" className="w-full workspace-enter">
                       <ScopeIntakeForm
                         projectId={projectId}
                         userId={userId}
@@ -568,7 +585,7 @@ export function Chat({
                       />
                     </div>
                   ) : latestScopeMessage ? (
-                    <div className="w-full">
+                    <div key="scope" className="w-full workspace-enter">
                       <ScopeWidget
                         socket={socketRef.current}
                         projectId={projectId}
@@ -712,7 +729,10 @@ export function Chat({
                       const milestoneId = payload.milestoneId ?? "milestone-1";
                       const milestone = (project?.milestones ?? []).find((m: any) => m.id === milestoneId) ?? null;
                       return (
-                        <div key={message.id} className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+                        <div
+                          key={message.id}
+                          className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} ${animatedMessageIds.has(message.id) ? "slide-up-fade" : ""}`}
+                        >
                           <DemoWidget
                             socket={socketRef.current}
                             projectId={projectId}
@@ -730,7 +750,10 @@ export function Chat({
                     if (message.type === "SCOPE_WIDGET") {
                       const payload = (message.payload ?? {}) as ScopePayload;
                       return (
-                        <div key={message.id} className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+                        <div
+                          key={message.id}
+                          className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} ${animatedMessageIds.has(message.id) ? "slide-up-fade" : ""}`}
+                        >
                           <ScopeWidget
                             socket={socketRef.current}
                             projectId={projectId}
@@ -752,13 +775,16 @@ export function Chat({
                     const canViewRelease =
                       role === "BUILDER" && p?.kind === "MILESTONE_RELEASED";
                     return (
-                      <div key={message.id} className="flex justify-center">
+                      <div
+                        key={message.id}
+                        className={`flex justify-center ${animatedMessageIds.has(message.id) ? "slide-up-fade" : ""}`}
+                      >
                         <span className="inline-flex max-w-[85%] flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full bg-muted px-3 py-1 text-center text-xs font-medium text-muted-foreground shadow-sm">
                           <span>{message.content}</span>
                           {canViewRelease ? (
                             <button
                               type="button"
-                              className="font-semibold text-primary underline underline-offset-2 hover:opacity-80"
+                              className="font-semibold text-primary underline underline-offset-2 transition-opacity duration-200 hover:opacity-80"
                               onClick={() => {
                                 setBuilderPayoutData({
                                   projectTitle: p.projectTitle ?? project?.title,
@@ -780,7 +806,10 @@ export function Chat({
                   }
 
                   return (
-                    <div key={message.id} className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+                    <div
+                      key={message.id}
+                      className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} ${animatedMessageIds.has(message.id) ? "slide-up-fade" : ""}`}
+                    >
                       <div
                         className={`max-w-[85%] px-3 py-2 text-sm ${
                           isOwnMessage
@@ -812,7 +841,7 @@ export function Chat({
                 <Button
                   type="button"
                   size="icon"
-                  className="absolute bottom-3 right-3 h-8 w-8 rounded-full shadow"
+                  className="absolute bottom-3 right-3 h-8 w-8 rounded-full shadow workspace-scale-enter"
                   onClick={scrollToBottom}
                   aria-label="Scroll to latest messages"
                 >
@@ -856,7 +885,7 @@ export function Chat({
           ) : null}
 
           {finalOfferDecisionDock ? (
-            <div className="flex flex-col gap-2 border-t border-border/60 -mx-3 px-3 py-3">
+            <div className="flex flex-col gap-2 border-t border-border/60 -mx-3 px-3 py-3 slide-up-fade">
               {selectedOffer ? (
                 <div className="space-y-2 rounded-md border bg-background p-2 text-sm">
                   <div className="flex items-center justify-between font-medium">
@@ -939,7 +968,7 @@ export function Chat({
               ) : null}
             </div>
           ) : !showIntakeForm && canChat ? (
-            <div className="flex flex-col gap-2 border-t border-border/60 -mx-3 px-3 py-3">
+            <div className="flex flex-col gap-2 border-t border-border/60 -mx-3 px-3 py-3 workspace-enter">
               {role === "BUILDER" && projectStatus === "ACTIVE" ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <Button variant="outline" onClick={() => setSubmitOpen(true)} disabled={!canSubmitDemo}>

@@ -422,9 +422,9 @@ export function OffersPanel({
       </button>
 
       {open ? (
-        <div className="absolute bottom-full left-0 right-0 z-30 mb-2 flex flex-col gap-2">
+        <div className="absolute bottom-full left-0 right-0 z-30 mb-2 flex flex-col gap-2 slide-up-fade">
           {unreadCount > 0 && onJumpToLatest ? (
-            <button type="button" className="mx-auto inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs font-medium shadow hover:bg-muted" onClick={onJumpToLatest}>
+            <button type="button" className="mx-auto inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs font-medium shadow transition-all duration-200 hover:bg-muted workspace-scale-enter" onClick={onJumpToLatest}>
               <span>New {unreadCount === 1 ? "message" : "messages"}</span>
               <span className="text-muted-foreground">Jump to latest</span>
             </button>
