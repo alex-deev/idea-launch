@@ -89,7 +89,7 @@ export function Chat({
 }: ChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
-  const [projectStatus, setProjectStatus] = useState("SCOPING");
+  const [projectStatus, setProjectStatus] = useState<string | null>(null);
   const [project, setProject] = useState<any>(null);
   const [offers, setOffers] = useState<OfferRecord[]>([]);
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
@@ -170,6 +170,8 @@ export function Chat({
         if (data.project.status) {
           setProjectStatus(data.project.status);
           onProjectStatusChange?.(projectId, data.project.status);
+        } else {
+          setProjectStatus((prev) => prev ?? "SCOPING");
         }
       }
     });
@@ -300,6 +302,7 @@ export function Chat({
     null;
   const showOffersBar = projectStatus === "OPEN_FOR_BIDS" && !showIntakeForm;
   const showHeaderTermsButton =
+    !!projectStatus &&
     ["ACTIVE", "COMPLETED", "CANCELLED"].includes(projectStatus) &&
     (!!acceptedTermsOffer || !!(project as any)?.totalEscrow || (project?.milestones ?? []).length > 0);
 
@@ -548,7 +551,34 @@ export function Chat({
     };
   })();
 
+  const isStatusKnown = projectStatus !== null;
   const isScopingTakeover = projectStatus === "SCOPING";
+
+  if (!isStatusKnown) {
+    return (
+      <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-border/60 workspace-enter">
+        <Card size="sm" className="flex min-h-0 flex-1 flex-col gap-0 overflow-visible ring-0 py-0">
+          <CardHeader className="shrink-0 !flex items-center justify-between border-b border-border/60 pt-2">
+            <div className="flex w-full items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <CardTitle className="truncate">Project {projectId}</CardTitle>
+              </div>
+              <div className="flex items-center gap-1">
+                {onClose ? (
+                  <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close project card" title="Close card">
+                    <X className="h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 items-center justify-center p-6">
+            <p className="text-sm text-muted-foreground">Loading project…</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isScopingTakeover) {
     return (
