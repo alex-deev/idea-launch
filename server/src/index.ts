@@ -31,12 +31,15 @@ const authConfig = {
   },
   cookies: {
     sessionToken: {
+      // Use "__Host-" in production only when cookie is scoped to the host with
+      // no Domain attribute; for cross-origin client/server deploys we use the
+      // "__Secure-" prefix and SameSite=None.
       name: isProduction
         ? "__Secure-authjs.session-token"
         : "authjs.session-token",
       options: {
         httpOnly: true,
-        sameSite: "lax" as const,
+        sameSite: (isProduction ? "none" : "lax") as "none" | "lax",
         path: "/",
         secure: isProduction,
       },
@@ -132,12 +135,11 @@ app.get("/api/me", async (req, res) => {
 app.use("/auth", ExpressAuth(authConfig as any));
 app.use("/api/auth", authRouter);
 app.use("/api/payments", paymentsRouter);
-app.use("/api/auth", authRouter);
 app.use("/api/projects", projectsRouter);
 
 const httpServer = createServer(app);
 initializeSocket(httpServer);
 
-httpServer.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
+httpServer.listen(port, "0.0.0.0", () => {
+  console.log(`API listening on port ${port} (CLIENT_ORIGIN=${clientOrigin})`);
 });
