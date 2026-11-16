@@ -1,5 +1,3 @@
-npm notice run idea-launch@1.0.0 npx
-npm notice run 'prisma' migrate diff --from-empty --to-schema-datamodel server/prisma/schema.prisma --script
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
