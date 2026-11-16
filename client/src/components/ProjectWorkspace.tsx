@@ -304,6 +304,41 @@ export function ProjectWorkspace({
     return <p className="text-sm text-red-600">{error}</p>;
   }
 
+  const isBuilder = role === "BUILDER";
+  const panelAccent = isBuilder
+    ? {
+        rail: "border-[#ffb110]/15 bg-[#fff4d6]/25 hover:bg-[#fff4d6]/40 dark:border-[#ffb110]/20 dark:bg-[#3a2f1e]/20 dark:hover:bg-[#3a2f1e]/30",
+        railIcon: "text-[#8a5a00] dark:text-[#ffb110]",
+        railLabel: "text-[#8a5a00] dark:text-[#ffb110]",
+        railBadge: "border-[#ffb110]/25 bg-background/70 dark:border-[#ffb110]/25",
+        aside: "border-[#ffb110]/15 bg-[#fff4d6]/20 dark:border-[#ffb110]/20 dark:bg-[#3a2f1e]/15",
+        header: "border-[#ffb110]/15 dark:border-[#ffb110]/20",
+        collapseBtn:
+          "text-[#8a5a00] hover:bg-[#fff4d6]/50 hover:text-[#8a5a00] dark:text-[#ffb110] dark:hover:bg-[#3a2f1e]/30",
+        selected:
+          "border-[#ffb110]/35 bg-[#fff4d6]/35 shadow-sm dark:border-[#ffb110]/30 dark:bg-[#3a2f1e]/30",
+        idle:
+          "border-border bg-card hover:border-[#ffb110]/20 hover:bg-[#fff4d6]/20 dark:hover:border-[#ffb110]/20 dark:hover:bg-[#3a2f1e]/20",
+        archivedIdle:
+          "hover:border-[#ffb110]/20 hover:bg-[#fff4d6]/15 dark:hover:border-[#ffb110]/20 dark:hover:bg-[#3a2f1e]/15",
+      }
+    : {
+        rail: "border-[#0075de]/10 bg-[#e6f3fe]/20 hover:bg-[#e6f3fe]/40 dark:border-[#62aef0]/15 dark:bg-[#1e3a5f]/15 dark:hover:bg-[#1e3a5f]/30",
+        railIcon: "text-[#0075de] dark:text-[#62aef0]",
+        railLabel: "text-[#0075de] dark:text-[#62aef0]",
+        railBadge: "border-[#0075de]/20 bg-background/70 dark:border-[#62aef0]/20",
+        aside: "border-[#0075de]/10 bg-[#e6f3fe]/15 dark:border-[#62aef0]/15 dark:bg-[#1e3a5f]/10",
+        header: "border-[#0075de]/10 dark:border-[#62aef0]/15",
+        collapseBtn:
+          "text-[#0075de] hover:bg-[#e6f3fe]/50 hover:text-[#0075de] dark:text-[#62aef0] dark:hover:bg-[#1e3a5f]/30",
+        selected:
+          "border-[#0075de]/40 bg-[#e6f3fe]/35 shadow-sm dark:border-[#62aef0]/35 dark:bg-[#1e3a5f]/25",
+        idle:
+          "border-border bg-card hover:border-[#0075de]/20 hover:bg-[#e6f3fe]/20 dark:hover:border-[#62aef0]/20 dark:hover:bg-[#1e3a5f]/15",
+        archivedIdle:
+          "hover:border-[#0075de]/20 hover:bg-[#e6f3fe]/15 dark:hover:border-[#62aef0]/20 dark:hover:bg-[#1e3a5f]/15",
+      };
+
   return (
     <div className="flex h-full w-full gap-4">
       {isPlansCollapsed ? (
@@ -319,23 +354,23 @@ export function ProjectWorkspace({
             aria-controls={PLANS_PANEL_ID}
             aria-label={`Expand project plans (${visibleProjects.length})`}
             title="Expand project plans"
-            className="flex h-full w-full flex-col items-center gap-3 rounded-lg border border-transparent py-2 text-muted-foreground transition-all duration-200 hover:bg-muted/50 hover:text-foreground active:scale-[0.98] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className={`flex h-full w-full flex-col items-center gap-3 rounded-lg border py-2 text-muted-foreground transition-all duration-200 hover:text-foreground active:scale-[0.98] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${panelAccent.rail}`}
           >
-            <PanelLeftOpen className="size-4 shrink-0 transition-transform duration-200" aria-hidden="true" />
-            <span className="text-[0.7rem] font-semibold tracking-wider uppercase [writing-mode:vertical-rl]">
+            <PanelLeftOpen className={`size-4 shrink-0 transition-transform duration-200 ${panelAccent.railIcon}`} aria-hidden="true" />
+            <span className={`text-[0.7rem] font-semibold tracking-wider uppercase [writing-mode:vertical-rl] ${panelAccent.railLabel}`}>
               Project Plans
             </span>
-            <Badge variant="outline">{visibleProjects.length}</Badge>
+            <Badge variant="outline" className={panelAccent.railBadge}>{visibleProjects.length}</Badge>
           </button>
         </aside>
       ) : (
         <aside
           id={PLANS_PANEL_ID}
           aria-label="Project plans"
-          className="flex h-full w-80 shrink-0 flex-col gap-3 overflow-y-auto p-1 workspace-enter"
+          className={`flex h-full w-80 shrink-0 flex-col gap-3 overflow-y-auto rounded-xl border p-2 workspace-enter ${panelAccent.aside}`}
         >
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold">Project Plans</h2>
+          <div className={`flex items-center justify-between gap-2 rounded-lg border-b px-1 pb-2 ${panelAccent.header}`}>
+            <h2 className="text-lg font-semibold text-foreground">Project Plans</h2>
             <div className="flex items-center gap-1">
               {role === "CLIENT" && !isCreateFormOpen ? (
                 <Button size="sm" onClick={() => setIsCreateFormOpen(true)} disabled={isCreating}>
@@ -350,6 +385,7 @@ export function ProjectWorkspace({
                 aria-controls={PLANS_PANEL_ID}
                 aria-label="Collapse project plans"
                 title="Collapse project plans"
+                className={panelAccent.collapseBtn}
               >
                 <PanelLeftClose aria-hidden="true" />
               </Button>
@@ -357,8 +393,10 @@ export function ProjectWorkspace({
           </div>
 
           {role === "CLIENT" ? (
-            <div className="rounded-md border bg-muted/30 p-2 text-xs">
-              <p className="font-medium">Open for bids: {clientOpenBidsCount}/{CLIENT_OPEN_BIDS_LIMIT}</p>
+            <div className="rounded-md border border-[#0075de]/15 bg-[#e6f3fe]/40 p-2 text-xs dark:border-[#62aef0]/20 dark:bg-[#1e3a5f]/20">
+              <p className="font-medium text-foreground">
+                Open for bids: <span className="text-[#0075de] dark:text-[#62aef0]">{clientOpenBidsCount}/{CLIENT_OPEN_BIDS_LIMIT}</span>
+              </p>
               {clientOpenBidsCount === CLIENT_OPEN_BIDS_LIMIT - 1 ? (
                 <p className="text-muted-foreground">1 slot left.</p>
               ) : clientOpenBidsCount >= CLIENT_OPEN_BIDS_LIMIT ? (
@@ -437,8 +475,9 @@ export function ProjectWorkspace({
           ) : null}
 
           {role === "BUILDER" ? (
-            <p className="text-xs text-muted-foreground">
-              {acceptedActiveProjects.length}/{BUILDER_PROJECT_LIMIT} accepted active projects
+            <p className="rounded-md border border-[#ffb110]/20 bg-[#fff4d6]/35 px-2 py-1.5 text-xs text-muted-foreground dark:border-[#ffb110]/20 dark:bg-[#3a2f1e]/20">
+              <span className="font-medium text-[#8a5a00] dark:text-[#ffb110]">{acceptedActiveProjects.length}/{BUILDER_PROJECT_LIMIT}</span>{" "}
+              accepted active projects
               {atAcceptedLimit ? " (limit reached)" : ""}
             </p>
           ) : null}
@@ -448,14 +487,14 @@ export function ProjectWorkspace({
           <div key={view} className="space-y-2 workspace-enter">
             {view === "available" && role === "BUILDER" ? (
               availableUnavailableReason === "AT_CAPACITY" || atAcceptedLimit ? (
-                <Card>
+                <Card className="border-[#ffb110]/20 bg-[#fff4d6]/30 dark:border-[#ffb110]/20 dark:bg-[#3a2f1e]/20">
                   <CardContent className="p-4 text-sm text-muted-foreground">
                     You’ve reached the limit of {BUILDER_PROJECT_LIMIT} accepted active projects, so you
                     can’t see or take on new project plans right now.
                   </CardContent>
                 </Card>
               ) : availableProjects.length === 0 ? (
-                <Card>
+                <Card className="border-[#ffb110]/15 bg-[#fff4d6]/20 dark:border-[#ffb110]/15 dark:bg-[#3a2f1e]/15">
                   <CardContent className="p-4 text-sm text-muted-foreground">
                     No projects open for offers right now.
                   </CardContent>
@@ -466,7 +505,7 @@ export function ProjectWorkspace({
                   return (
                     <div
                       key={project.id}
-                      className="rounded-lg border p-3 transition-all duration-200 hover:border-foreground/20 hover:bg-muted/20"
+                      className="rounded-lg border border-[#ffb110]/15 bg-card p-3 transition-all duration-200 hover:border-[#ffb110]/30 hover:bg-[#fff4d6]/20 dark:border-[#ffb110]/15 dark:hover:bg-[#3a2f1e]/20"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">{project.title}</span>
@@ -513,9 +552,7 @@ export function ProjectWorkspace({
                         type="button"
                         onClick={() => selectProject(project.id)}
                         className={`w-full rounded-lg border p-3 text-left transition-all duration-200 active:scale-[0.99] ${
-                          selectedProjectId === project.id
-                            ? "border-primary bg-primary/5 shadow-sm"
-                            : "hover:border-foreground/20 hover:bg-muted/30"
+                          selectedProjectId === project.id ? panelAccent.selected : panelAccent.idle
                         }`}
                       >
                         <div className="flex min-w-0 items-center justify-between gap-2">
@@ -555,10 +592,8 @@ export function ProjectWorkspace({
                               key={project.id}
                               type="button"
                               onClick={() => selectProject(project.id)}
-                              className={`w-full rounded-lg border border-dashed p-3 text-left opacity-70 transition-all duration-200 hover:opacity-100 hover:border-foreground/20 hover:bg-muted/30 active:scale-[0.99] ${
-                                selectedProjectId === project.id
-                                  ? "border-primary bg-primary/5"
-                                  : "hover:bg-muted/50"
+                              className={`w-full rounded-lg border border-dashed p-3 text-left opacity-70 transition-all duration-200 hover:opacity-100 active:scale-[0.99] ${
+                                selectedProjectId === project.id ? panelAccent.selected : panelAccent.archivedIdle
                               }`}
                             >
                               <div className="flex min-w-0 items-center justify-between gap-2">

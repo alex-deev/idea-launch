@@ -556,9 +556,9 @@ export function Chat({
 
   if (!isStatusKnown) {
     return (
-      <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-border/60 workspace-enter">
+      <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-[#0075de]/10 bg-[#e6f3fe]/10 workspace-enter dark:border-[#62aef0]/15 dark:bg-[#1e3a5f]/10">
         <Card size="sm" className="flex min-h-0 flex-1 flex-col gap-0 overflow-visible ring-0 py-0">
-          <CardHeader className="shrink-0 !flex items-center justify-between border-b border-border/60 pt-2">
+          <CardHeader className="shrink-0 !flex items-center justify-between border-b border-[#0075de]/10 bg-[#e6f3fe]/20 pt-2 dark:border-[#62aef0]/15 dark:bg-[#1e3a5f]/15">
             <div className="flex w-full items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
                 <CardTitle className="truncate">Project {projectId}</CardTitle>
@@ -582,15 +582,15 @@ export function Chat({
 
   if (isScopingTakeover) {
     return (
-      <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-border/60 workspace-enter">
+      <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-[#0075de]/10 bg-[#e6f3fe]/10 workspace-enter dark:border-[#62aef0]/15 dark:bg-[#1e3a5f]/10">
         <Card size="sm" className="flex min-h-0 flex-1 flex-col gap-0 overflow-visible ring-0 py-0">
-          <CardHeader className="shrink-0 !flex items-center justify-between border-b border-border/60 pt-2">
+          <CardHeader className="shrink-0 !flex items-center justify-between border-b border-[#0075de]/10 bg-[#e6f3fe]/20 pt-2 dark:border-[#62aef0]/15 dark:bg-[#1e3a5f]/15">
             <div className="flex w-full items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
                 <CardTitle className="truncate">
                   {project?.title ?? `Project ${projectId}`}
                 </CardTitle>
-                <Badge variant="secondary" className="shrink-0">Scoping</Badge>
+                <Badge variant="secondary" className="shrink-0 border-[#0075de]/15 bg-[#e6f3fe]/60 text-[#0075de] dark:border-[#62aef0]/20 dark:bg-[#1e3a5f]/30 dark:text-[#62aef0]">Scoping</Badge>
               </div>
               <div className="flex items-center gap-1">
                 {onClose ? (
@@ -648,12 +648,12 @@ export function Chat({
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-border/60">
+    <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4 rounded-xl border border-[#0075de]/10 bg-[#e6f3fe]/10 dark:border-[#62aef0]/15 dark:bg-[#1e3a5f]/10">
       <Card
         size="sm"
         className="relative flex min-h-0 flex-1 flex-col gap-0 overflow-visible ring-0 py-0"
       >
-        <CardHeader className="shrink-0 !flex items-center justify-between border-b border-border/60 pt-2">
+        <CardHeader className="shrink-0 !flex items-center justify-between border-b border-[#0075de]/10 bg-[#e6f3fe]/20 pt-2 dark:border-[#62aef0]/15 dark:bg-[#1e3a5f]/15">
           <div className="flex w-full items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <CardTitle className="truncate">

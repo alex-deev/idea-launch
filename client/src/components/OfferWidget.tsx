@@ -398,25 +398,25 @@ export function OffersPanel({
   };
 
   return (
-    <div className={`relative -mx-3 border-t border-border/60 px-3 ${compact ? "py-1.5" : "py-3"}`}>
+    <div className={`relative -mx-3 border-t border-[#ffb110]/20 px-3 ${compact ? "py-1.5" : "py-3"}`}>
       <button
         type="button"
-        className="flex w-full items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-left hover:bg-muted/50"
+        className="flex w-full items-center justify-between gap-2 rounded-md border border-[#ffb110]/20 bg-[#fff4d6]/30 px-3 py-2 text-left transition-colors hover:bg-[#fff4d6]/45 dark:border-[#ffb110]/20 dark:bg-[#3a2f1e]/20 dark:hover:bg-[#3a2f1e]/30"
         onClick={onToggle}
         aria-expanded={open}
       >
         <div className="flex min-w-0 items-center gap-2">
-          {open ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+          {open ? <ChevronDown className="h-4 w-4 shrink-0 text-[#8a5a00] dark:text-[#ffb110]" /> : <ChevronRight className="h-4 w-4 shrink-0 text-[#8a5a00] dark:text-[#ffb110]" />}
           <div className="min-w-0">
-            <div className="text-sm font-semibold">
+            <div className="text-sm font-semibold text-foreground">
               {selectedOfferId ? "Other offers" : "Offers"}
             </div>
             <div className="truncate text-xs text-muted-foreground">{summary}</div>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {unreadCount > 0 ? <Badge variant="default" className="h-5 min-w-5 px-1.5">{unreadCount > 99 ? "99+" : unreadCount} new</Badge> : null}
-          {selectedOfferId ? <Badge variant="secondary">Negotiation</Badge> : null}
+          {unreadCount > 0 ? <Badge variant="default" className="h-5 min-w-5 bg-[#8a5a00] px-1.5 text-white hover:bg-[#8a5a00]/90 dark:bg-[#ffb110] dark:text-black dark:hover:bg-[#ffb110]/90">{unreadCount > 99 ? "99+" : unreadCount} new</Badge> : null}
+          {selectedOfferId ? <Badge variant="secondary" className="border-[#ffb110]/20 bg-[#fff4d6]/50 text-[#8a5a00] dark:border-[#ffb110]/20 dark:bg-[#3a2f1e]/30 dark:text-[#ffb110]">Negotiation</Badge> : null}
           <span className="text-xs text-muted-foreground">{open ? "Collapse" : "Expand"}</span>
         </div>
       </button>
@@ -424,12 +424,12 @@ export function OffersPanel({
       {open ? (
         <div className="absolute bottom-full left-0 right-0 z-30 mb-2 flex flex-col gap-2 slide-up-fade">
           {unreadCount > 0 && onJumpToLatest ? (
-            <button type="button" className="mx-auto inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-xs font-medium shadow transition-all duration-200 hover:bg-muted workspace-scale-enter" onClick={onJumpToLatest}>
+            <button type="button" className="mx-auto inline-flex items-center gap-2 rounded-full border border-[#ffb110]/25 bg-[#fff4d6]/70 px-3 py-1.5 text-xs font-medium text-[#8a5a00] shadow transition-all duration-200 hover:bg-[#fff4d6] workspace-scale-enter dark:border-[#ffb110]/25 dark:bg-[#3a2f1e]/70 dark:text-[#ffb110] dark:hover:bg-[#3a2f1e]" onClick={onJumpToLatest}>
               <span>New {unreadCount === 1 ? "message" : "messages"}</span>
-              <span className="text-muted-foreground">Jump to latest</span>
+              <span className="text-[#8a5a00]/70 dark:text-[#ffb110]/70">Jump to latest</span>
             </button>
           ) : null}
-          <div className="max-h-[min(60vh,28rem)] space-y-3 overflow-y-auto rounded-md border bg-background p-3 shadow-lg">
+          <div className="max-h-[min(60vh,28rem)] space-y-3 overflow-y-auto rounded-md border border-[#ffb110]/20 bg-background p-3 shadow-lg dark:border-[#ffb110]/20">
             {role === "BUILDER" ? (
               !myOffer ? (
                 builderAtCapacity ? (
