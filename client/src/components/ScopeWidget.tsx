@@ -122,7 +122,7 @@ export function ScopeWidget({
 
   const scope = isEditing ? draft : normalizedView;
   const refinement = (payload as any)?.refinement as
-    | { status?: "needs_info" | "ready"; source?: "gemini" | "fallback"; contextSummary?: string | null }
+    | { status?: "needs_info" | "ready"; source?: "gemini" | "nemotron" | "fallback"; contextSummary?: string | null }
     | undefined;
   const refinementStatus = refinement?.status;
   const isRefinementReady = refinementStatus !== "needs_info";

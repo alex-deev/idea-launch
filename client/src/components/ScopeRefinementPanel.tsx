@@ -24,7 +24,7 @@ export interface RefinementState {
   questions?: RefinementQuestion[];
   answers?: RefinementAnswer[];
   contextSummary?: string | null;
-  source?: "gemini" | "fallback";
+  source?: "gemini" | "nemotron" | "fallback";
   intake?: {
     idea?: string;
     budgetCents?: number;
