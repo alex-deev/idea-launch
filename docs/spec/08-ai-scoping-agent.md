@@ -2,9 +2,9 @@
 
 ### 8.1 Iterative trigger and refinement loop
 - Client UI `ScopeIntakeForm` collects idea, budget, timeline, and app kind/platform targets and sends `[TRIGGER_SCOPE_GENERATION] <idea>` (via `send_message`) to start scoping.
-- The server runs `services/synthesis.ts` as an **iterative refinement** step with provider fallback (Gemini → Nemotron → deterministic fallback):
-  - **Gemini:** `@google/genai` Structured Outputs (`responseMimeType` + `responseSchema`, timeout/model-candidate retries), validated/normalized in code.
-  - **Nemotron (fallback provider):** NVIDIA NIM OpenAI-compatible chat completions (default `nvidia/nemotron-3.5-lightning-30b-a3b`, JSON response + parse/validate) when Gemini fails/times out or is unconfigured.
+- The server runs `services/synthesis.ts` as an **iterative refinement** step with provider fallback (Nemotron → Gemini → deterministic fallback):
+  - **Nemotron (primary provider):** NVIDIA NIM OpenAI-compatible chat completions (default `nvidia/nemotron-3.5-lightning-30b-a3b`, JSON response + parse/validate), timeout-bounded and validated/normalized in code.
+  - **Gemini (fallback provider):** `@google/genai` Structured Outputs (`responseMimeType` + `responseSchema`, timeout/model-candidate retries) when Nemotron fails/times out or is unconfigured.
   - **Deterministic fallback:** on no-provider/unavailable-provider failure, returns a deterministic **ready** blueprint (incorporating provided answers/context when available) so scoping never blocks.
 - Outcomes:
   - **`needs_info`:** returns 1–4 targeted, high-signal clarifying questions (e.g. target users, core flows, must-haves, integrations, platform details, constraints/success criteria) plus optional context summary.

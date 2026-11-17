@@ -611,7 +611,7 @@ async function synthesizeScopeWithGemini(
 
 /**
  * Generate scope refinement: returns targeted questions (needs_info) or a
- * ready, normalized blueprint. Provider order: Gemini -> Nemotron (if configured)
+ * ready, normalized blueprint. Provider order: Nemotron -> Gemini (if configured)
  * -> deterministic fallback. Any provider error/timeout/invalid output falls
  * through so scoping never blocks.
  */
@@ -620,28 +620,28 @@ export async function synthesizeScope(input: SynthesisInput): Promise<SynthesisR
   const nvidiaKey = process.env.NVIDIA_API_KEY;
   const budgetCents = input.budgetCents ?? DEFAULT_BUDGET_CENTS;
 
-  if (geminiKey) {
-    try {
-      return await synthesizeScopeWithGemini(input, geminiKey, budgetCents);
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      console.warn(`[synthesis] Gemini provider failed: ${reason}`);
-      // fall through to Nemotron / deterministic fallback
-    }
-  } else {
-    console.warn("[synthesis] GEMINI_API_KEY is not set; skipping Gemini provider.");
-  }
-
   if (nvidiaKey) {
     try {
       return await synthesizeScopeWithNemotron(input, nvidiaKey, budgetCents);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       console.warn(`[synthesis] Nemotron provider failed: ${reason}`);
-      // fall through to deterministic fallback
+      // fall through to Gemini / deterministic fallback
     }
   } else {
     console.warn("[synthesis] NVIDIA_API_KEY is not set; skipping Nemotron provider.");
+  }
+
+  if (geminiKey) {
+    try {
+      return await synthesizeScopeWithGemini(input, geminiKey, budgetCents);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(`[synthesis] Gemini provider failed: ${reason}`);
+      // fall through to deterministic fallback
+    }
+  } else {
+    console.warn("[synthesis] GEMINI_API_KEY is not set; skipping Gemini provider.");
   }
 
   const reason = geminiKey || nvidiaKey
