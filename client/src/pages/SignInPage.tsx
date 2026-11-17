@@ -5,6 +5,13 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth, type FakeRole } from "@/contexts/AuthContext";
 
 export function SignInPage() {
@@ -55,14 +62,15 @@ export function SignInPage() {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">{t("auth:workspace")}</label>
-            <select
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              value={role}
-              onChange={(event) => setRole(event.target.value as FakeRole)}
-            >
-              <option value="CLIENT">{t("auth:client")}</option>
-              <option value="BUILDER">{t("auth:builder")}</option>
-            </select>
+            <Select value={role} onValueChange={(value) => setRole(value as FakeRole)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={t("auth:workspace")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CLIENT">{t("auth:client")}</SelectItem>
+                <SelectItem value="BUILDER">{t("auth:builder")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <Button className="w-full" disabled={isSubmitting}>
