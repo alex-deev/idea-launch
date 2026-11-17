@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Chat } from "@/components/Chat";
 import { API_URL } from "@/lib/api";
 import { buildMilestones } from "@/lib/milestones";
+import { formatCurrencyCents } from "@/lib/format";
 
 interface ProjectSummary {
   id: string;
@@ -56,6 +58,7 @@ export function ProjectWorkspace({
   name,
   probationary,
 }: ProjectWorkspaceProps) {
+  const { t, i18n } = useTranslation();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [availableProjects, setAvailableProjects] = useState<ProjectSummary[]>([]);
   const [availableUnavailableReason, setAvailableUnavailableReason] = useState<string | null>(null);
@@ -297,7 +300,7 @@ export function ProjectWorkspace({
   };
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading projects...</p>;
+    return <p className="text-sm text-muted-foreground">{t("loadingProjects")}</p>;
   }
 
   if (error && projects.length === 0) {
@@ -344,7 +347,7 @@ export function ProjectWorkspace({
       {isPlansCollapsed ? (
         <aside
           id={PLANS_PANEL_ID}
-          aria-label="Project plans"
+          aria-label={t("projectPlans")}
           className="flex h-full w-12 shrink-0 flex-col workspace-enter"
         >
           <button
@@ -352,13 +355,13 @@ export function ProjectWorkspace({
             onClick={() => setPlansCollapsed(false)}
             aria-expanded={false}
             aria-controls={PLANS_PANEL_ID}
-            aria-label={`Expand project plans (${visibleProjects.length})`}
-            title="Expand project plans"
+            aria-label={`${t("expand")} ${t("projectPlans")} (${visibleProjects.length})`}
+            title={`${t("expand")} ${t("projectPlans")}`}
             className={`flex h-full w-full flex-col items-center gap-3 rounded-lg border py-2 text-muted-foreground transition-all duration-200 hover:text-foreground active:scale-[0.98] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${panelAccent.rail}`}
           >
             <PanelLeftOpen className={`size-4 shrink-0 transition-transform duration-200 ${panelAccent.railIcon}`} aria-hidden="true" />
             <span className={`text-[0.7rem] font-semibold tracking-wider uppercase [writing-mode:vertical-rl] ${panelAccent.railLabel}`}>
-              Project Plans
+              {t("projectPlans")}
             </span>
             <Badge variant="outline" className={panelAccent.railBadge}>{visibleProjects.length}</Badge>
           </button>
@@ -366,15 +369,15 @@ export function ProjectWorkspace({
       ) : (
         <aside
           id={PLANS_PANEL_ID}
-          aria-label="Project plans"
+          aria-label={t("projectPlans")}
           className={`flex h-full w-80 shrink-0 flex-col gap-3 overflow-y-auto rounded-xl border p-2 workspace-enter ${panelAccent.aside}`}
         >
           <div className={`flex items-center justify-between gap-2 rounded-lg border-b px-1 pb-2 ${panelAccent.header}`}>
-            <h2 className="text-lg font-semibold text-foreground">Project Plans</h2>
+            <h2 className="text-lg font-semibold text-foreground">{t("projectPlans")}</h2>
             <div className="flex items-center gap-1">
               {role === "CLIENT" && !isCreateFormOpen ? (
                 <Button size="sm" onClick={() => setIsCreateFormOpen(true)} disabled={isCreating}>
-                  New
+                  {t("new")}
                 </Button>
               ) : null}
               <Button
@@ -383,8 +386,8 @@ export function ProjectWorkspace({
                 onClick={() => setPlansCollapsed(true)}
                 aria-expanded
                 aria-controls={PLANS_PANEL_ID}
-                aria-label="Collapse project plans"
-                title="Collapse project plans"
+                aria-label={t("collapse") + " " + t("projectPlans").toLowerCase()}
+                title={t("collapse") + " " + t("projectPlans").toLowerCase()}
                 className={panelAccent.collapseBtn}
               >
                 <PanelLeftClose aria-hidden="true" />
@@ -395,12 +398,13 @@ export function ProjectWorkspace({
           {role === "CLIENT" ? (
             <div className="rounded-md border border-[#0075de]/15 bg-[#e6f3fe]/40 p-2 text-xs dark:border-[#62aef0]/20 dark:bg-[#1e3a5f]/20">
               <p className="font-medium text-foreground">
-                Open for bids: <span className="text-[#0075de] dark:text-[#62aef0]">{clientOpenBidsCount}/{CLIENT_OPEN_BIDS_LIMIT}</span>
+                {t("openForBids", { count: clientOpenBidsCount, limit: CLIENT_OPEN_BIDS_LIMIT }).split(":")[0]}:{" "}
+                <span className="text-[#0075de] dark:text-[#62aef0]">{clientOpenBidsCount}/{CLIENT_OPEN_BIDS_LIMIT}</span>
               </p>
               {clientOpenBidsCount === CLIENT_OPEN_BIDS_LIMIT - 1 ? (
-                <p className="text-muted-foreground">1 slot left.</p>
+                <p className="text-muted-foreground">{t("oneSlotLeft")}</p>
               ) : clientOpenBidsCount >= CLIENT_OPEN_BIDS_LIMIT ? (
-                <p className="text-muted-foreground">Limit reached. Accept/fund or cancel an open project to free a slot.</p>
+                <p className="text-muted-foreground">{t("openBidsLimitReached")}</p>
               ) : null}
             </div>
           ) : null}
@@ -409,7 +413,7 @@ export function ProjectWorkspace({
             <Card className="shrink-0 slide-down-fade">
               <CardContent className="space-y-1 px-2">
                 <label className="flex flex-col gap-1 text-sm font-medium" htmlFor="new-project-title">
-                  Project name
+                  {t("projectName")}
                 </label>
                 <Input
                   id="new-project-title"
@@ -425,7 +429,7 @@ export function ProjectWorkspace({
                       setNewProjectTitle("");
                     }
                   }}
-                  placeholder="e.g. Marketing website"
+                  placeholder={t("projectNamePlaceholder")}
                   autoFocus
                   disabled={isCreating}
                 />
@@ -439,14 +443,14 @@ export function ProjectWorkspace({
                     }}
                     disabled={isCreating}
                   >
-                    Cancel
+                    {t("cancel")}
                   </Button>
                   <Button
                     size="sm"
                     onClick={() => void handleCreateProject()}
                     disabled={isCreating || !newProjectTitle.trim()}
                   >
-                    {isCreating ? "Creating..." : "Create"}
+                    {isCreating ? t("creating") : t("create")}
                   </Button>
                 </div>
               </CardContent>
@@ -456,7 +460,7 @@ export function ProjectWorkspace({
           {role === "BUILDER" ? (
             <div className="flex gap-2">
               <Button size="sm" variant={view === "mine" ? "default" : "outline"} onClick={() => setView("mine")}>
-                My Projects
+                {t("myProjects")}
               </Button>
               <Button
                 size="sm"
@@ -465,11 +469,11 @@ export function ProjectWorkspace({
                 disabled={atAcceptedLimit}
                 title={
                   atAcceptedLimit
-                    ? "You have 3 accepted active projects and cannot take on new project plans."
+                    ? t("builderAtCapacity", { limit: BUILDER_PROJECT_LIMIT })
                     : undefined
                 }
               >
-                Open for offers
+                {t("openForOffers")}
               </Button>
             </div>
           ) : null}
@@ -477,8 +481,8 @@ export function ProjectWorkspace({
           {role === "BUILDER" ? (
             <p className="rounded-md border border-[#ffb110]/20 bg-[#fff4d6]/35 px-2 py-1.5 text-xs text-muted-foreground dark:border-[#ffb110]/20 dark:bg-[#3a2f1e]/20">
               <span className="font-medium text-[#8a5a00] dark:text-[#ffb110]">{acceptedActiveProjects.length}/{BUILDER_PROJECT_LIMIT}</span>{" "}
-              accepted active projects
-              {atAcceptedLimit ? " (limit reached)" : ""}
+              {t("acceptedActiveProjects", { count: acceptedActiveProjects.length, limit: BUILDER_PROJECT_LIMIT }).replace(`${acceptedActiveProjects.length}/${BUILDER_PROJECT_LIMIT} `, "")}
+              {atAcceptedLimit ? ` ${t("limitReached")}` : ""}
             </p>
           ) : null}
 
@@ -489,14 +493,13 @@ export function ProjectWorkspace({
               availableUnavailableReason === "AT_CAPACITY" || atAcceptedLimit ? (
                 <Card className="border-[#ffb110]/20 bg-[#fff4d6]/30 dark:border-[#ffb110]/20 dark:bg-[#3a2f1e]/20">
                   <CardContent className="p-4 text-sm text-muted-foreground">
-                    You’ve reached the limit of {BUILDER_PROJECT_LIMIT} accepted active projects, so you
-                    can’t see or take on new project plans right now.
+                    {t("builderAtCapacity", { limit: BUILDER_PROJECT_LIMIT })}
                   </CardContent>
                 </Card>
               ) : availableProjects.length === 0 ? (
                 <Card className="border-[#ffb110]/15 bg-[#fff4d6]/20 dark:border-[#ffb110]/15 dark:bg-[#3a2f1e]/15">
                   <CardContent className="p-4 text-sm text-muted-foreground">
-                    No projects open for offers right now.
+                    {t("noProjectsOpenForOffers")}
                   </CardContent>
                 </Card>
               ) : (
@@ -512,10 +515,10 @@ export function ProjectWorkspace({
                         <Badge variant="outline">{project.status}</Badge>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        ${(project.totalEscrow / 100).toFixed(2)} · {project.milestones.length} milestones
+                        {formatCurrencyCents(project.totalEscrow, i18n.resolvedLanguage)} · {project.milestones.length} {t("milestones", { defaultValue: "milestones" })}
                       </p>
                       {myOfferStatus ? (
-                        <p className="mt-1 text-xs text-muted-foreground">Your offer: {myOfferStatus}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{t("yourOffer", { status: myOfferStatus })}</p>
                       ) : null}
                       <Button
                         size="sm"
@@ -523,7 +526,7 @@ export function ProjectWorkspace({
                         variant="outline"
                         onClick={() => selectProject(project.id)}
                       >
-                        {myOfferStatus ? "View / manage offer" : "View plan & submit offer"}
+                        {myOfferStatus ? t("viewManageOffer") : t("viewPlanSubmitOffer")}
                       </Button>
                     </div>
                   );
@@ -535,7 +538,7 @@ export function ProjectWorkspace({
                   archivedProjects.length === 0 ? (
                     <Card>
                       <CardContent className="p-4 text-sm text-muted-foreground">
-                        No projects yet.
+                        {t("noProjectsYet")}
                       </CardContent>
                     </Card>
                   ) : null
@@ -560,8 +563,8 @@ export function ProjectWorkspace({
                           <Badge variant="outline" className="shrink-0">{project.status}</Badge>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          ${(project.totalEscrow / 100).toFixed(2)} · {releasedCount}/
-                          {project.milestones.length} milestones
+                          {formatCurrencyCents(project.totalEscrow, i18n.resolvedLanguage)} · {releasedCount}/
+                          {project.milestones.length} {t("milestones", { defaultValue: "milestones" })}
                         </p>
                       </button>
                     );
@@ -577,8 +580,8 @@ export function ProjectWorkspace({
                       className="w-full justify-between transition-colors duration-200"
                       onClick={() => setIsArchivedOpen((open) => !open)}
                     >
-                      Archived ({archivedProjects.length})
-                      <span className="transition-transform duration-200">{isArchivedOpen ? "Hide" : "Show"}</span>
+                      {t("archivedWithCount", { count: archivedProjects.length })}
+                      <span className="transition-transform duration-200">{isArchivedOpen ? t("hide") : t("show")}</span>
                     </Button>
                     <div
                       className={`grid transition-all duration-200 ease-out ${
@@ -601,7 +604,7 @@ export function ProjectWorkspace({
                                 <Badge variant="outline" className="shrink-0">{project.status}</Badge>
                               </div>
                               <p className="mt-1 text-xs text-muted-foreground">
-                                ${(project.totalEscrow / 100).toFixed(2)} · {project.milestones.length} milestones
+                                {formatCurrencyCents(project.totalEscrow, i18n.resolvedLanguage)} · {project.milestones.length} {t("milestones", { defaultValue: "milestones" })}
                               </p>
                             </button>
                           ))}
@@ -636,7 +639,7 @@ export function ProjectWorkspace({
         ) : (
           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border/60 p-6 workspace-enter">
             <p className="max-w-xs text-center text-sm text-muted-foreground">
-              No project open. Pick one from Project Plans to see its milestones and chat.
+              {t("noProjectOpen")}
             </p>
           </div>
         )}

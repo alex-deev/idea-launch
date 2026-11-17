@@ -8,6 +8,7 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -46,25 +47,28 @@ interface UserState {
 
 function TitleManager() {
   const location = useLocation();
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
     const titles: Record<string, string> = {
-      "/": "Idea Launch",
-      "/signin": "Sign In — Idea Launch",
-      "/signup": "Sign Up — Idea Launch",
-      "/workspace": "Workspace — Idea Launch",
+      "/": t("titles.home"),
+      "/signin": t("titles.signIn"),
+      "/signup": t("titles.signUp"),
+      "/workspace": t("titles.workspace"),
     };
-    document.title = titles[location.pathname] ?? "Idea Launch";
-  }, [location.pathname]);
+    document.title = titles[location.pathname] ?? t("appName");
+    document.documentElement.lang = i18n.resolvedLanguage?.startsWith("es") ? "es" : "en";
+  }, [location.pathname, t, i18n.resolvedLanguage]);
 
   return null;
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
+  const { t } = useTranslation();
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading session...</p>;
+    return <p className="text-sm text-muted-foreground">{t("loadingSession")}</p>;
   }
 
   if (!user) {
@@ -76,9 +80,10 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 function RedirectIfAuthenticated({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
+  const { t } = useTranslation();
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading session...</p>;
+    return <p className="text-sm text-muted-foreground">{t("loadingSession")}</p>;
   }
 
   if (user) {
@@ -102,13 +107,16 @@ function Header({
   onToggleTheme: () => void;
 }) {
   const location = useLocation();
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.resolvedLanguage?.startsWith("es") ? "es" : "en";
+  const nextLang = currentLang === "es" ? "en" : "es";
 
   return (
     <header className="shrink-0 flex items-center justify-between border-b p-4">
-      <Link to="/" className="flex items-center gap-2" aria-label="Idea Launch home">
+      <Link to="/" className="flex items-center gap-2" aria-label={t("appName")}>
         <img
           src={theme === "dark" ? "/logo-horizontal-dark.svg" : "/logo-horizontal.svg"}
-          alt="Idea Launch"
+          alt={t("appName")}
           className="hidden h-7 w-auto sm:block"
         />
         <img src="/logo-mark.svg" alt="" aria-hidden="true" className="h-8 w-8 sm:hidden" />
@@ -116,9 +124,20 @@ function Header({
       <div className="flex items-center gap-2">
         <Button
           variant="ghost"
+          size="sm"
+          onClick={() => void i18n.changeLanguage(nextLang)}
+          aria-label={t("language")}
+          title={t("language")}
+          className="px-2 text-xs font-semibold"
+        >
+          {currentLang === "es" ? "EN" : "ES"}
+        </Button>
+        <Button
+          variant="ghost"
           size="icon"
           onClick={onToggleTheme}
-          aria-label="Toggle theme"
+          aria-label={t("toggleTheme")}
+          title={t("toggleTheme")}
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
@@ -126,21 +145,21 @@ function Header({
           <>
             <span className="text-sm text-muted-foreground">{user.name}</span>
             <Button variant="outline" size="sm" onClick={signOut}>
-              Sign out
+              {t("signOut")}
             </Button>
           </>
         ) : (
           <>
             <Button asChild variant="outline" size="sm">
-              <Link to="/signin">Sign in</Link>
+              <Link to="/signin">{t("signIn")}</Link>
             </Button>
             <Button asChild size="sm">
-              <Link to="/signup">Sign up</Link>
+              <Link to="/signup">{t("signUp")}</Link>
             </Button>
           </>
         )}
         {user?.role === "BUILDER" && location.pathname === "/workspace" && builderProbationary ? (
-          <Badge variant="secondary">$1,500 Budget Cap</Badge>
+          <Badge variant="secondary">{t("budgetCap")}</Badge>
         ) : null}
       </div>
     </header>
@@ -148,6 +167,7 @@ function Header({
 }
 
 function LandingPage({ user }: { user: FakeUser | null }) {
+  const { t } = useTranslation("landing");
   const navigate = useNavigate();
   const [launchingTo, setLaunchingTo] = useState<string | null>(null);
 
@@ -165,84 +185,52 @@ function LandingPage({ user }: { user: FakeUser | null }) {
   const steps = [
     {
       number: "01",
-      title: "Scope",
-      body: "Describe your idea in plain language. Get an AI-generated blueprint with features, milestones, and out-of-scope — refine until it’s right.",
+      title: t("steps.scope.title"),
+      body: t("steps.scope.body"),
       accent: "bg-[#e6f3fe] text-[#0075de] border-[#0075de]/20",
     },
     {
       number: "02",
-      title: "Compare & agree",
-      body: "Publish to builders, review offers side by side, negotiate terms, and accept a final plan that locks scope and budget.",
+      title: t("steps.compare.title"),
+      body: t("steps.compare.body"),
       accent: "bg-[#fff4d6] text-[#8a5a00] border-[#ffb110]/30",
     },
     {
       number: "03",
-      title: "Fund & ship",
-      body: "Fund escrow across 3 milestones (30/40/30). Builders submit demo bundles, you review, and release payment on approval.",
+      title: t("steps.fund.title"),
+      body: t("steps.fund.body"),
       accent: "bg-[#fde8e4] text-[#b42318] border-[#f64932]/25",
     },
   ];
 
   const clientPoints = [
-    {
-      icon: Sparkles,
-      title: "AI-assisted scoping",
-      body: "Describe your idea, budget, and timeline in plain language. Get a structured blueprint — summary, features, milestones, and what’s out of scope — then refine it before you publish.",
-    },
-    {
-      icon: Scale,
-      title: "Compare offers on equal terms",
-      body: "Review proposals from multiple builders side by side. Each offer includes a total budget, milestone schedule, deliverable targets, and timeline so you can choose with confidence.",
-    },
-    {
-      icon: Handshake,
-      title: "Negotiate, then lock the plan",
-      body: "Select one builder to discuss terms in a focused conversation. When the offer is final and you accept, the agreed scope, milestones, and budget become the shared source of truth.",
-    },
+    { icon: Sparkles, title: t("clients.ai.title"), body: t("clients.ai.body") },
+    { icon: Scale, title: t("clients.compare.title"), body: t("clients.compare.body") },
+    { icon: Handshake, title: t("clients.negotiate.title"), body: t("clients.negotiate.body") },
     {
       icon: ShieldCheck,
-      title: "Milestone-based escrow protection",
-      body: "Fund a fixed total split across three milestones. Payment is released only when you approve each submitted demo bundle — you pay for approved progress, not promises.",
+      title: t("clients.escrow.title"),
+      body: t("clients.escrow.body"),
       featured: true,
-      highlight: "30 / 40 / 30",
-      highlightLabel: "Initial · Final · Deployment",
+      highlight: t("clients.escrow.highlight"),
+      highlightLabel: t("clients.escrow.highlightLabel"),
     },
-    {
-      icon: Eye,
-      title: "Review-driven delivery",
-      body: "Builders submit staged demos for review. Approve to move forward, or request changes with clear feedback — progress stays transparent from first demo to deployment.",
-    },
+    { icon: Eye, title: t("clients.review.title"), body: t("clients.review.body") },
   ];
 
   const builderPoints = [
-    {
-      icon: FileText,
-      title: "Clear, standardized scope",
-      body: "Start from a published blueprint with defined features, milestones, and deliverable expectations — less guesswork, fewer surprises, and a shared understanding from day one.",
-    },
-    {
-      icon: Send,
-      title: "One focused offer per project",
-      body: "Submit a single, structured offer with your proposed total, milestone dates, and delivery targets. When selected, negotiate terms directly with the client and finalize when you’re aligned.",
-    },
-    {
-      icon: MessageSquareCheck,
-      title: "Staged demos, explicit feedback",
-      body: "Deliver work as milestone demo bundles and get concrete review outcomes. If changes are requested, you know exactly what to address before the next approval.",
-    },
+    { icon: FileText, title: t("builders.scope.title"), body: t("builders.scope.body") },
+    { icon: Send, title: t("builders.offer.title"), body: t("builders.offer.body") },
+    { icon: MessageSquareCheck, title: t("builders.feedback.title"), body: t("builders.feedback.body") },
     {
       icon: Banknote,
-      title: "Get paid per approved milestone",
-      body: "Escrow is tied to the agreed plan. As each milestone is approved, the corresponding portion is released — predictable payouts tied to delivered, accepted progress.",
+      title: t("builders.payout.title"),
+      body: t("builders.payout.body"),
       featured: true,
-      highlight: "30 / 40 / 30",
-      highlightLabel: "Released per approval",
+      highlight: t("builders.payout.highlight"),
+      highlightLabel: t("builders.payout.highlightLabel"),
     },
-    {
-      icon: Gauge,
-      title: "Built for sustainable work",
-      body: "Capacity and eligibility rules keep workloads manageable, while transparent terms and milestone structure help you focus on building instead of chasing clarity or payment.",
-    },
+    { icon: Gauge, title: t("builders.sustainable.title"), body: t("builders.sustainable.body") },
   ];
 
   const clientFeatured = clientPoints.find((p) => p.featured)!;
@@ -270,18 +258,17 @@ function LandingPage({ user }: { user: FakeUser | null }) {
             className="hero-reveal text-4xl font-semibold leading-[1.1] tracking-[-0.03em] text-foreground sm:text-5xl md:text-6xl md:leading-[1.05] md:tracking-[-0.04em]"
             style={{ animationDelay: "80ms" }}
           >
-            Scope, fund, and{" "}
+            {t("heroTitle1")}
             <span className="inline-block rounded-full bg-[#f6d5b8] px-3 py-0.5 text-black transition-transform duration-300 hover:scale-105 md:px-4">
-              ship
-            </span>{" "}
-            software with confidence.
+              {t("heroHighlight")}
+            </span>
+            {t("heroTitle2")}
           </h1>
           <p
             className="hero-reveal mx-auto max-w-2xl font-serif text-lg leading-relaxed text-muted-foreground md:text-xl"
             style={{ animationDelay: "200ms" }}
           >
-            Turn an idea into a clear blueprint, compare builder offers, and pay only as each
-            milestone is approved.
+            {t("heroSubtitle")}
           </p>
         </div>
 
@@ -291,15 +278,15 @@ function LandingPage({ user }: { user: FakeUser | null }) {
         >
           {user ? (
             <Button asChild size="lg" className="active:scale-[0.98]">
-              <Link to="/workspace" onClick={(e) => handleLaunch(e, "/workspace")}>Go to workspace</Link>
+              <Link to="/workspace" onClick={(e) => handleLaunch(e, "/workspace")}>{t("common:goToWorkspace")}</Link>
             </Button>
           ) : (
             <>
               <Button asChild size="lg" className="active:scale-[0.98]">
-                <Link to="/signup" onClick={(e) => handleLaunch(e, "/signup")}>Get started</Link>
+                <Link to="/signup" onClick={(e) => handleLaunch(e, "/signup")}>{t("getStarted")}</Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="active:scale-[0.98]">
-                <Link to="/signin" onClick={(e) => handleLaunch(e, "/signin")}>Sign in</Link>
+                <Link to="/signin" onClick={(e) => handleLaunch(e, "/signin")}>{t("common:signIn")}</Link>
               </Button>
             </>
           )}
@@ -308,21 +295,20 @@ function LandingPage({ user }: { user: FakeUser | null }) {
           className="hero-reveal text-xs tracking-wide text-muted-foreground"
           style={{ animationDelay: "440ms" }}
         >
-          3 milestones · 30/40/30 escrow · demo-reviewed releases
+          {t("heroNote")}
         </p>
       </section>
 
       <section ref={howReveal.ref} className="space-y-10">
         <div className={`space-y-3 text-center reveal ${howReveal.inView ? "is-visible" : ""}`}>
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-            How it works
+            {t("howItWorks")}
           </p>
           <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
-            From idea to approved delivery
+            {t("howTitle")}
           </h2>
           <p className="mx-auto max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
-            A structured path from first description to final deployment — with clarity at every
-            step.
+            {t("howSubtitle")}
           </p>
         </div>
         <div className="grid gap-5 md:grid-cols-3">
@@ -353,14 +339,13 @@ function LandingPage({ user }: { user: FakeUser | null }) {
             className={`mx-auto max-w-3xl space-y-3 text-center reveal ${clientsReveal.inView ? "is-visible" : ""}`}
           >
             <p className="text-xs font-medium uppercase tracking-[0.12em] text-[#0075de]">
-              For clients
+              {t("forClients")}
             </p>
             <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
-              Turn uncertainty into a plan you can trust
+              {t("clientsTitle")}
             </h2>
             <p className="mx-auto max-w-2xl text-sm leading-relaxed text-muted-foreground md:text-base">
-              Idea Launch helps non-technical and technical clients alike move from a rough idea to
-              a funded, reviewable project — without guessing at scope or paying everything upfront.
+              {t("clientsSubtitle")}
             </p>
           </div>
 
@@ -420,14 +405,13 @@ function LandingPage({ user }: { user: FakeUser | null }) {
             className={`space-y-3 md:sticky md:top-8 reveal ${buildersReveal.inView ? "is-visible" : ""}`}
           >
             <p className="text-xs font-medium uppercase tracking-[0.12em] text-[#b18164]">
-              For builders
+              {t("forBuilders")}
             </p>
             <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
-              Build with clarity, deliver with confidence
+              {t("buildersTitle")}
             </h2>
             <p className="text-sm leading-relaxed text-muted-foreground md:text-base">
-              Spend less time decoding vague requests and more time shipping. Idea Launch gives
-              builders structured projects, explicit terms, and milestone-based releases.
+              {t("buildersSubtitle")}
             </p>
           </div>
 
@@ -494,14 +478,13 @@ function LandingPage({ user }: { user: FakeUser | null }) {
           className={`text-2xl font-semibold tracking-tight md:text-3xl reveal ${ctaReveal.inView ? "is-visible" : ""}`}
           style={{ animationDelay: "80ms" }}
         >
-          Ready to turn an idea into a shipped project?
+          {t("ctaTitle")}
         </h2>
         <p
           className={`mx-auto mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground md:text-base reveal ${ctaReveal.inView ? "is-visible" : ""}`}
           style={{ animationDelay: "160ms" }}
         >
-          Start with a clear blueprint, find the right builder, and move forward one approved
-          milestone at a time.
+          {t("ctaSubtitle")}
         </p>
         <div
           className={`mt-6 flex flex-wrap items-center justify-center gap-3 reveal ${ctaReveal.inView ? "is-visible" : ""}`}
@@ -510,7 +493,7 @@ function LandingPage({ user }: { user: FakeUser | null }) {
           {user ? (
             <Button asChild size="lg" className="group active:scale-[0.98]">
               <Link to="/workspace" onClick={(e) => handleLaunch(e, "/workspace")}>
-                Go to workspace
+                {t("common:goToWorkspace")}
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
               </Link>
             </Button>
@@ -518,12 +501,12 @@ function LandingPage({ user }: { user: FakeUser | null }) {
             <>
               <Button asChild size="lg" className="group active:scale-[0.98]">
                 <Link to="/signup" onClick={(e) => handleLaunch(e, "/signup")}>
-                  Get started
+                  {t("getStarted")}
                   <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
                 </Link>
               </Button>
               <Button asChild variant="ghost" size="lg" className="active:scale-[0.98]">
-                <Link to="/signin" onClick={(e) => handleLaunch(e, "/signin")}>Sign in</Link>
+                <Link to="/signin" onClick={(e) => handleLaunch(e, "/signin")}>{t("common:signIn")}</Link>
               </Button>
             </>
           )}
@@ -532,7 +515,7 @@ function LandingPage({ user }: { user: FakeUser | null }) {
           className={`mt-4 text-xs tracking-wide text-muted-foreground reveal ${ctaReveal.inView ? "is-visible" : ""}`}
           style={{ animationDelay: "320ms" }}
         >
-          Start with a scope · Fund only when you accept a final offer
+          {t("ctaNote")}
         </p>
       </section>
 
@@ -543,7 +526,7 @@ function LandingPage({ user }: { user: FakeUser | null }) {
               <img src="/logo-mark.svg" alt="" aria-hidden="true" className="h-full w-full" />
             </div>
             <p className="text-sm font-medium text-muted-foreground">
-              {launchingTo === "/workspace" ? "Opening workspace…" : "Opening…"}
+              {launchingTo === "/workspace" ? t("openingWorkspace") : t("opening")}
             </p>
           </div>
         </div>

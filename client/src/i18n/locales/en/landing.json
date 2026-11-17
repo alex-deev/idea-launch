@@ -1,0 +1,41 @@
+{
+  "heroTitle1": "Scope, fund, and ",
+  "heroHighlight": "ship",
+  "heroTitle2": " software with confidence.",
+  "heroSubtitle": "Turn an idea into a clear blueprint, compare builder offers, and pay only as each milestone is approved.",
+  "getStarted": "Get started",
+  "heroNote": "3 milestones · 30/40/30 escrow · demo-reviewed releases",
+  "howItWorks": "How it works",
+  "howTitle": "From idea to approved delivery",
+  "howSubtitle": "A structured path from first description to final deployment — with clarity at every step.",
+  "steps": {
+    "scope": { "title": "Scope", "body": "Describe your idea in plain language. Get an AI-generated blueprint with features, milestones, and out-of-scope — refine until it’s right." },
+    "compare": { "title": "Compare & agree", "body": "Publish to builders, review offers side by side, negotiate terms, and accept a final plan that locks scope and budget." },
+    "fund": { "title": "Fund & ship", "body": "Fund escrow across 3 milestones (30/40/30). Builders submit demo bundles, you review, and release payment on approval." }
+  },
+  "forClients": "For clients",
+  "clientsTitle": "Turn uncertainty into a plan you can trust",
+  "clientsSubtitle": "Idea Launch helps non-technical and technical clients alike move from a rough idea to a funded, reviewable project — without guessing at scope or paying everything upfront.",
+  "clients": {
+    "ai": { "title": "AI-assisted scoping", "body": "Describe your idea, budget, and timeline in plain language. Get a structured blueprint — summary, features, milestones, and what’s out of scope — then refine it before you publish." },
+    "compare": { "title": "Compare offers on equal terms", "body": "Review proposals from multiple builders side by side. Each offer includes a total budget, milestone schedule, deliverable targets, and timeline so you can choose with confidence." },
+    "negotiate": { "title": "Negotiate, then lock the plan", "body": "Select one builder to discuss terms in a focused conversation. When the offer is final and you accept, the agreed scope, milestones, and budget become the shared source of truth." },
+    "escrow": { "title": "Milestone-based escrow protection", "body": "Fund a fixed total split across three milestones. Payment is released only when you approve each submitted demo bundle — you pay for approved progress, not promises.", "highlight": "30 / 40 / 30", "highlightLabel": "Initial · Final · Deployment" },
+    "review": { "title": "Review-driven delivery", "body": "Builders submit staged demos for review. Approve to move forward, or request changes with clear feedback — progress stays transparent from first demo to deployment." }
+  },
+  "forBuilders": "For builders",
+  "buildersTitle": "Build with clarity, deliver with confidence",
+  "buildersSubtitle": "Spend less time decoding vague requests and more time shipping. Idea Launch gives builders structured projects, explicit terms, and milestone-based releases.",
+  "builders": {
+    "scope": { "title": "Clear, standardized scope", "body": "Start from a published blueprint with defined features, milestones, and deliverable expectations — less guesswork, fewer surprises, and a shared understanding from day one." },
+    "offer": { "title": "One focused offer per project", "body": "Submit a single, structured offer with your proposed total, milestone dates, and delivery targets. When selected, negotiate terms directly with the client and finalize when you’re aligned." },
+    "feedback": { "title": "Staged demos, explicit feedback", "body": "Deliver work as milestone demo bundles and get concrete review outcomes. If changes are requested, you know exactly what to address before the next approval." },
+    "payout": { "title": "Get paid per approved milestone", "body": "Escrow is tied to the agreed plan. As each milestone is approved, the corresponding portion is released — predictable payouts tied to delivered, accepted progress.", "highlight": "30 / 40 / 30", "highlightLabel": "Released per approval" },
+    "sustainable": { "title": "Built for sustainable work", "body": "Capacity and eligibility rules keep workloads manageable, while transparent terms and milestone structure help you focus on building instead of chasing clarity or payment." }
+  },
+  "ctaTitle": "Ready to turn an idea into a shipped project?",
+  "ctaSubtitle": "Start with a clear blueprint, find the right builder, and move forward one approved milestone at a time.",
+  "ctaNote": "Start with a scope · Fund only when you accept a final offer",
+  "openingWorkspace": "Opening workspace…",
+  "opening": "Opening…"
+}

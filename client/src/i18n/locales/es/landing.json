@@ -1,0 +1,41 @@
+{
+  "heroTitle1": "Define, financia y ",
+  "heroHighlight": "lanza",
+  "heroTitle2": " software con confianza.",
+  "heroSubtitle": "Convierte una idea en un plan claro, compara ofertas de constructores y paga solo cuando se apruebe cada hito.",
+  "getStarted": "Comenzar",
+  "heroNote": "3 hitos · depósito en garantía 30/40/30 · pagos tras revisión de demos",
+  "howItWorks": "Cómo funciona",
+  "howTitle": "De la idea a la entrega aprobada",
+  "howSubtitle": "Un camino estructurado desde la primera descripción hasta el despliegue final, con claridad en cada paso.",
+  "steps": {
+    "scope": { "title": "Define el alcance", "body": "Describe tu idea en lenguaje sencillo. Obtén un plan generado por IA con funciones, hitos y lo que queda fuera del alcance, y ajústalo hasta que esté listo." },
+    "compare": { "title": "Compara y acuerda", "body": "Publica para constructores, revisa ofertas lado a lado, negocia términos y acepta un plan final que fija alcance y presupuesto." },
+    "fund": { "title": "Financia y entrega", "body": "Financia el depósito en garantía en 3 hitos (30/40/30). Los constructores envían demos, tú las revisas y liberas el pago al aprobar." }
+  },
+  "forClients": "Para clientes",
+  "clientsTitle": "Convierte la incertidumbre en un plan confiable",
+  "clientsSubtitle": "Idea Launch ayuda a clientes técnicos y no técnicos a pasar de una idea inicial a un proyecto financiado y revisable, sin adivinar el alcance ni pagar todo por adelantado.",
+  "clients": {
+    "ai": { "title": "Alcance asistido por IA", "body": "Describe tu idea, presupuesto y plazo en lenguaje sencillo. Obtén un plan estructurado — resumen, funciones, hitos y lo que queda fuera del alcance — y ajústalo antes de publicar." },
+    "compare": { "title": "Compara ofertas en igualdad de condiciones", "body": "Revisa propuestas de varios constructores lado a lado. Cada oferta incluye presupuesto total, calendario de hitos, entregables y plazos para que elijas con confianza." },
+    "negotiate": { "title": "Negocia y luego fija el plan", "body": "Selecciona un constructor para tratar los términos en una conversación enfocada. Cuando la oferta sea final y la aceptes, el alcance, los hitos y el presupuesto acordados serán la referencia compartida." },
+    "escrow": { "title": "Protección con depósito por hitos", "body": "Financia un total fijo dividido en tres hitos. El pago se libera solo cuando apruebas cada demo enviado: pagas por progreso aprobado, no por promesas.", "highlight": "30 / 40 / 30", "highlightLabel": "Inicial · Final · Despliegue" },
+    "review": { "title": "Entrega guiada por revisiones", "body": "Los constructores envían demos por etapas para tu revisión. Aprueba para avanzar o solicita cambios con comentarios claros: el progreso es transparente desde la primera demo hasta el despliegue." }
+  },
+  "forBuilders": "Para constructores",
+  "buildersTitle": "Construye con claridad, entrega con confianza",
+  "buildersSubtitle": "Dedica menos tiempo a descifrar solicitudes vagas y más a construir. Idea Launch ofrece proyectos estructurados, términos explícitos y pagos por hitos aprobados.",
+  "builders": {
+    "scope": { "title": "Alcance claro y estandarizado", "body": "Comienza desde un plan publicado con funciones, hitos y expectativas de entrega definidos: menos suposiciones, menos sorpresas y un entendimiento compartido desde el primer día." },
+    "offer": { "title": "Una oferta enfocada por proyecto", "body": "Envía una única oferta estructurada con tu total propuesto, fechas de hitos y objetivos de entrega. Al ser seleccionado, negocia directamente con el cliente y finaliza cuando estén alineados." },
+    "feedback": { "title": "Demos por etapas, retroalimentación explícita", "body": "Entrega el trabajo como paquetes de demo por hito y recibe resultados de revisión concretos. Si se solicitan cambios, sabrás exactamente qué abordar antes de la siguiente aprobación." },
+    "payout": { "title": "Cobra por cada hito aprobado", "body": "El depósito en garantía está ligado al plan acordado. A medida que se aprueba cada hito, se libera la parte correspondiente: pagos predecibles por progreso entregado y aceptado.", "highlight": "30 / 40 / 30", "highlightLabel": "Liberado por aprobación" },
+    "sustainable": { "title": "Diseñado para un trabajo sostenible", "body": "Las reglas de capacidad y elegibilidad mantienen cargas manejables, mientras que los términos transparentes y la estructura por hitos te ayudan a enfocarte en construir." }
+  },
+  "ctaTitle": "¿Listo para convertir una idea en un proyecto entregado?",
+  "ctaSubtitle": "Comienza con un plan claro, encuentra al constructor adecuado y avanza un hito aprobado a la vez.",
+  "ctaNote": "Empieza con el alcance · Financia solo cuando aceptes una oferta final",
+  "openingWorkspace": "Abriendo espacio de trabajo…",
+  "opening": "Abriendo…"
+}
