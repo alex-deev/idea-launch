@@ -132,15 +132,6 @@ export function ScopeIntakeForm({
     <div className="w-full max-w-2xl shrink-0">
       <div className="mb-4">
         <h2 className="text-lg font-semibold">Project Intake</h2>
-        {isSubmitting ? (
-          <p className="mt-1 text-sm text-muted-foreground" role="status" aria-live="polite">
-            {status === "sending"
-              ? "Sending your idea..."
-              : takingLong
-                ? "Still working on your scope — taking longer than usual. Please keep this open."
-                : "Generating scope with AI. This can take a moment."}
-          </p>
-        ) : null}
       </div>
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div className="space-y-2">
@@ -225,6 +216,16 @@ export function ScopeIntakeForm({
             />
           </div>
         </div>
+
+        {isSubmitting ? (
+          <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+            {status === "sending"
+              ? "Sending your idea..."
+              : takingLong
+                ? "Still working on your scope — taking longer than usual. Please keep this open."
+                : "Generating scope with AI. This can take a moment."}
+          </p>
+        ) : null}
 
         {error ? (
           <p className="text-sm text-red-600" role="alert">

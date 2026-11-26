@@ -74,30 +74,26 @@ export function ScopeRefinementPanel({
   }, [questions.map((q) => q.id).join("|")]);
 
   const answeredCount = questions.filter((q) => (answers[q.id] ?? "").trim().length > 0).length;
-  const requiredMissing = questions.some(
-    (q) => q.required !== false && !(answers[q.id] ?? "").trim(),
-  );
+  const missingAnswers = questions.some((q) => !(answers[q.id] ?? "").trim());
 
-  const submit = async (opts?: { forceReady?: boolean }) => {
+  const submit = async () => {
     if (!socket) {
       const msg = "Not connected. Please wait and try again.";
       setError(msg);
       toast.error(msg);
       return;
     }
-    if (!opts?.forceReady && requiredMissing) {
-      const msg = "Please answer the required questions to continue.";
+    if (missingAnswers) {
+      const msg = "Please answer all questions to continue.";
       setError(msg);
       return;
     }
 
-    const payloadAnswers: RefinementAnswer[] = questions
-      .map((q) => ({
-        questionId: q.id,
-        question: q.question,
-        answer: (answers[q.id] ?? "").trim(),
-      }))
-      .filter((a) => a.answer.length > 0);
+    const payloadAnswers: RefinementAnswer[] = questions.map((q) => ({
+      questionId: q.id,
+      question: q.question,
+      answer: (answers[q.id] ?? "").trim(),
+    }));
 
     setIsSubmitting(true);
     setError(null);
@@ -112,9 +108,8 @@ export function ScopeRefinementPanel({
           content: "[TRIGGER_SCOPE_GENERATION]",
           payload: {
             refine: true,
-            action: opts?.forceReady ? "generate_ready" : "continue",
+            action: "continue",
             answers: payloadAnswers,
-            ...(opts?.forceReady ? { forceReady: true } : {}),
           },
         },
         120000,
@@ -165,9 +160,7 @@ export function ScopeRefinementPanel({
           <div key={q.id} className="space-y-2 rounded-md border p-3">
             <label className="block text-sm font-medium" htmlFor={`refine-${q.id}`}>
               {index + 1}. {q.question}
-              {q.required === false ? (
-                <span className="ml-1 font-normal text-muted-foreground">(optional)</span>
-              ) : null}
+              {null}
             </label>
             {q.hint ? <p className="text-xs text-muted-foreground">{q.hint}</p> : null}
             <textarea
@@ -197,25 +190,15 @@ export function ScopeRefinementPanel({
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button
-          className="flex-1"
-          onClick={() => void submit()}
-          disabled={isSubmitting || questions.length === 0}
-        >
-          {isSubmitting ? "Refining scope..." : "Submit answers"}
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => void submit({ forceReady: true })}
-          disabled={isSubmitting}
-          title="Generate a blueprint with the information provided so far"
-        >
-          {isSubmitting ? "Working..." : "Generate blueprint now"}
-        </Button>
-      </div>
+      <Button
+        className="w-full sm:w-auto"
+        onClick={() => void submit()}
+        disabled={isSubmitting || questions.length === 0 || missingAnswers}
+      >
+        {isSubmitting ? "Refining scope..." : "Submit answers"}
+      </Button>
       <p className="text-xs text-muted-foreground">
-        {answeredCount}/{questions.length} answered. You can generate a blueprint at any time.
+        {answeredCount}/{questions.length} answered.
       </p>
     </div>
   );
