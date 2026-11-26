@@ -44,7 +44,7 @@
 - Builders/non-clients see a clear “scoping/refining in progress” state until published.
 
 ### 8.5 Failure mode and config
-- **Provider fallback:** Gemini → Nemotron (`NVIDIA_API_KEY`, `NVIDIA_MODEL` default `nvidia/nemotron-3.5-lightning-30b-a3b`, optional `NVIDIA_BASE_URL` default `https://integrate.api.nvidia.com/v1`) → deterministic ready fallback. Deterministic fallback is flagged as `refinement.source="fallback"` and surfaced in UI.
+- **Provider fallback:** Nemotron (`NVIDIA_API_KEY`, `NVIDIA_MODEL` default `nvidia/nemotron-3.5-lightning-30b-a3b`, optional `NVIDIA_BASE_URL` default `https://integrate.api.nvidia.com/v1`) → Gemini (`GEMINI_API_KEY`/`GOOGLE_API_KEY`, `GEMINI_MODEL`) → deterministic ready fallback. Deterministic fallback is flagged as `refinement.source="fallback"` and surfaced in UI.
 - **Non-recoverable errors:** ack `{ ok: false, error }` and a `SYSTEM` message on request/DB failures; refinement/blueprint state is not advanced to an invalid ready state.
 
 ---
